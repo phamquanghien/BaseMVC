@@ -67,3 +67,12 @@ create, edit, and delete use JSON endpoints and update the table without a page
 reload. Write requests require the ASP.NET Core Anti-Forgery token. The
 `Administrator` and `SuperAdmin` system roles cannot be renamed or deleted,
 and a role assigned to users cannot be deleted.
+
+## Role permissions
+
+Users with `Permissions.Access.Read` can open `/Admin/Permissions` to inspect
+the permission catalog. Changing grants requires `Permissions.Access.Manage`;
+updates use JSON POST requests protected by an Anti-Forgery token.
+SuperAdmin retains both `Permissions.Access.Read` and
+`Permissions.Access.Manage` so its permission manager cannot lock itself out.
+Grant and revoke operations update role claims in SQLite immediately.

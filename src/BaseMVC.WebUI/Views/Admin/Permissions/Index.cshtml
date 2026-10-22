@@ -1,0 +1,74 @@
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "Quản lý quyền";
+    var canManage = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Access.Manage")).Succeeded;
+}
+
+<section class="space-y-6" data-permission-manager
+         data-roles-url="@Url.Action("GetRoles", "Permissions", new { area = "" })"
+         data-permission-url-template="@Url.Action("GetRolePermissions", "Permissions", new { area = "", roleId = "__roleId__" })"
+         data-update-url-template="@Url.Action("UpdateRolePermissions", "Permissions", new { area = "", roleId = "__roleId__" })"
+         data-can-manage="@canManage.ToString().ToLowerInvariant()">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <div class="badge badge-primary badge-outline">Authorization</div>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight">Quản lý quyền</h1>
+            <p class="mt-2 text-base-content/70">Cấp hoặc thu hồi quyền theo role. Thay đổi có hiệu lực ngay ở lần kiểm tra tiếp theo.</p>
+        </div>
+        <span class="badge @(canManage ? "badge-success" : "badge-ghost")">
+            @(canManage ? "Có quyền chỉnh sửa" : "Chỉ xem")
+        </span>
+    </div>
+
+    <div class="alert alert-info">
+        <span>Quyền xem và quản lý phân quyền của SuperAdmin luôn được giữ để tránh tự khóa quyền quản trị.</span>
+    </div>
+
+    <div class="alert alert-error hidden" role="alert" data-permission-error></div>
+
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-0 p-0">
+            <div class="border-b border-base-300 p-4 sm:p-6">
+                <h2 class="text-lg font-semibold">Vai trò hệ thống</h2>
+                <p class="mt-1 text-sm text-base-content/70">Chọn một role để xem hoặc điều chỉnh danh sách quyền.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr><th>Tên role</th><th class="text-right">Thao tác</th></tr>
+                    </thead>
+                    <tbody data-permission-roles>
+                        <tr><td colspan="2" class="py-8 text-center text-base-content/60">Đang tải danh sách role...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <form id="permission-antiforgery" method="post" asp-antiforgery="false" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <dialog class="modal" data-permission-modal>
+        <div class="modal-box max-w-3xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold" data-permission-role-name>Quyền của role</h2>
+            <p class="mt-2 text-sm text-base-content/70">Chọn các quyền cần cấp cho role này.</p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-permission-modal-error></div>
+            <div class="mt-5 max-h-[55vh] space-y-4 overflow-y-auto pr-1" data-permission-groups>
+                <p class="py-8 text-center text-base-content/60">Đang tải catalog quyền...</p>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-permission-cancel>Đóng</button>
+                <button type="button" class="btn btn-primary @(canManage ? "" : "hidden")" data-permission-save>Lưu quyền</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+</section>
+
+@section Scripts {
+    <script src="~/js/admin-permissions.js" asp-append-version="true"></script>
+}

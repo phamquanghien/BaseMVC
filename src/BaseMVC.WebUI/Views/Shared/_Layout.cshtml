@@ -3,6 +3,8 @@
 @{
     var canReadRoles = User.Identity?.IsAuthenticated == true
         && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Roles.Read")).Succeeded;
+    var canReadPermissions = User.Identity?.IsAuthenticated == true
+        && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Access.Read")).Succeeded;
 }
 <html lang="vi" data-theme="light">
 <head>
@@ -29,6 +31,10 @@
                         @if (canReadRoles)
                         {
                             <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
+                        }
+                        @if (canReadPermissions)
+                        {
+                            <li><a asp-controller="Permissions" asp-action="Index">Phân quyền</a></li>
                         }
                     </ul>
                 </div>
@@ -58,6 +64,10 @@
                             @if (canReadRoles)
                             {
                                 <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
+                            }
+                            @if (canReadPermissions)
+                            {
+                                <li><a asp-controller="Permissions" asp-action="Index">Phân quyền</a></li>
                             }
                             @if (User.Identity?.IsAuthenticated == true)
                             {
