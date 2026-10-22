@@ -9,6 +9,7 @@ using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Auditing;
+using BaseMVC.WebUI.HealthChecks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -19,6 +20,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -900,8 +902,10 @@ public sealed class UserManagementEndpointTests
             services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
             await using var provider = services.BuildServiceProvider();
             var hostEnvironment = new BackupTestHostEnvironment(testDirectory.FullName);
+            var backupStatus = new SqliteBackupStatus();
             var backupService = new SqliteDatabaseBackupService(
                 provider.GetRequiredService<IServiceScopeFactory>(),
+                backupStatus,
                 Options.Create(new SqliteBackupOptions
                 {
                     Directory = backupDirectory,
@@ -909,11 +913,58 @@ public sealed class UserManagementEndpointTests
                 }),
                 hostEnvironment,
                 NullLogger<SqliteDatabaseBackupService>.Instance);
+            var backupOptions = new SqliteBackupOptions
+            {
+                Directory = backupDirectory,
+                IntervalHours = 24,
+                RetentionDays = 7
+            };
 
             var backupPath = await backupService.CreateBackupAsync(DateTimeOffset.UtcNow);
             Assert.True(File.Exists(backupPath));
             Assert.False(File.Exists(expiredBackupPath));
             Assert.True(File.Exists(unrelatedFilePath));
+
+            var healthCheck = new SqliteBackupHealthCheck(
+                Options.Create(backupOptions),
+                backupStatus,
+                hostEnvironment,
+                NullLogger<SqliteBackupHealthCheck>.Instance);
+            var healthCheckContext = new HealthCheckContext
+            {
+                Registration = new HealthCheckRegistration(
+                    "sqlite-backup",
+                    _ => healthCheck,
+                    HealthStatus.Unhealthy,
+                    ["ready"])
+            };
+            var healthyResult = await healthCheck.CheckHealthAsync(healthCheckContext);
+            Assert.Equal(HealthStatus.Healthy, healthyResult.Status);
+            Assert.DoesNotContain(
+                Directory.EnumerateFiles(backupDirectory),
+                path => Path.GetFileName(path).StartsWith(
+                    ".basemvc-backup-health-",
+                    StringComparison.Ordinal));
+
+            backupStatus.RecordFailure();
+            var failedAttemptResult = await healthCheck.CheckHealthAsync(healthCheckContext);
+            Assert.Equal(HealthStatus.Unhealthy, failedAttemptResult.Status);
+            backupStatus.RecordSuccess(DateTimeOffset.UtcNow);
+
+            File.SetLastWriteTimeUtc(backupPath, DateTime.UtcNow.AddHours(-49));
+            var staleResult = await healthCheck.CheckHealthAsync(healthCheckContext);
+            Assert.Equal(HealthStatus.Unhealthy, staleResult.Status);
+
+            var missingDirectoryCheck = new SqliteBackupHealthCheck(
+                Options.Create(new SqliteBackupOptions
+                {
+                    Directory = Path.Combine(testDirectory.FullName, "missing")
+                }),
+                backupStatus,
+                hostEnvironment,
+                NullLogger<SqliteBackupHealthCheck>.Instance);
+            var missingDirectoryResult = await missingDirectoryCheck.CheckHealthAsync(healthCheckContext);
+            Assert.Equal(HealthStatus.Unhealthy, missingDirectoryResult.Status);
 
             await using var backupConnection = new SqliteConnection(
                 new SqliteConnectionStringBuilder
@@ -1189,6 +1240,15 @@ public sealed class UserManagementEndpointTests
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
                 services.RemoveAll<ApplicationDbContext>();
                 services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+                services.Configure<HealthCheckServiceOptions>(options =>
+                {
+                    foreach (var registration in options.Registrations
+                        .Where(registration => registration.Name == "sqlite-backup")
+                        .ToArray())
+                    {
+                        options.Registrations.Remove(registration);
+                    }
+                });
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(_emailSender);
             });

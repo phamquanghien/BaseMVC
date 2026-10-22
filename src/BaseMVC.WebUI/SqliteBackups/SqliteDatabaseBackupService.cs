@@ -8,6 +8,7 @@ namespace BaseMVC.WebUI.SqliteBackups;
 
 public sealed class SqliteDatabaseBackupService(
     IServiceScopeFactory scopeFactory,
+    SqliteBackupStatus backupStatus,
     IOptions<SqliteBackupOptions> options,
     IHostEnvironment environment,
     ILogger<SqliteDatabaseBackupService> logger) : BackgroundService
@@ -48,6 +49,7 @@ public sealed class SqliteDatabaseBackupService(
         var backupPath = Path.Combine(
             backupDirectory,
             $"{BackupFilePrefix}{timestamp}-{Guid.NewGuid():N}.db");
+        var backupVerified = false;
 
         try
         {
@@ -68,16 +70,19 @@ public sealed class SqliteDatabaseBackupService(
 
             sourceConnection.BackupDatabase(destinationConnection);
             await VerifyIntegrityAsync(destinationConnection, cancellationToken);
+            backupVerified = true;
             await PruneExpiredBackupsAsync(backupDirectory, utcNow, cancellationToken);
 
+            backupStatus.RecordSuccess(utcNow);
             logger.LogInformation("Created and verified SQLite backup at {BackupPath}.", backupPath);
             return backupPath;
         }
         catch
         {
+            backupStatus.RecordFailure();
             try
             {
-                if (File.Exists(backupPath))
+                if (!backupVerified && File.Exists(backupPath))
                 {
                     File.Delete(backupPath);
                 }

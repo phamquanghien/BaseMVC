@@ -175,4 +175,11 @@ application data before reopening traffic. Periodically rehearse this process
 using an isolated copy; backups stored on the same host are not protection
 against host or volume loss. When multiple application instances run, use a
 single designated backup worker or external coordination and shared storage
-to avoid redundant backup sets.
+to avoid redundant backup sets. With automated backups enabled,
+`/health/ready` also checks backup-directory write access and requires a
+verified backup newer than two backup intervals (48 hours with the default
+schedule). A failing check returns HTTP 503 and logs a diagnostic message;
+the latest backup attempt failing also marks readiness unhealthy immediately.
+Configure external monitoring to alert on non-200 readiness responses. If
+automated backups are deliberately disabled, this backup readiness check is
+not registered.

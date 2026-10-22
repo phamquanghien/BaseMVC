@@ -27,6 +27,7 @@ builder.Services
     .Bind(builder.Configuration.GetSection("SqliteBackup"))
     .Validate(options => IsValidBackupOptions(options), "SQLite backup configuration is invalid.")
     .ValidateOnStart();
+builder.Services.AddSingleton<SqliteBackupStatus>();
 builder.Services.AddHostedService<SqliteDatabaseBackupService>();
 builder.Services.AddRateLimiter(options =>
 {
@@ -90,6 +91,12 @@ builder.Services
         () => HealthCheckResult.Healthy(),
         tags: ["live"])
     .AddCheck<SqliteReadinessHealthCheck>("sqlite", tags: ["ready"]);
+if (builder.Configuration.GetSection("SqliteBackup").Get<SqliteBackupOptions>()?.Enabled ?? true)
+{
+    builder.Services
+        .AddHealthChecks()
+        .AddCheck<SqliteBackupHealthCheck>("sqlite-backup", tags: ["ready"]);
+}
 
 var app = builder.Build();
 
