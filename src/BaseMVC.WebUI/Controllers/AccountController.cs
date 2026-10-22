@@ -1,6 +1,7 @@
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.Models.Account;
+using BaseMVC.WebUI.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;

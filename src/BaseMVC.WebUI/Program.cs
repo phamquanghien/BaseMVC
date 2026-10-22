@@ -2,15 +2,78 @@ using BaseMVC.Infrastructure;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.HealthChecks;
+using BaseMVC.WebUI.Security;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Globalization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+var accountRateLimits = builder.Configuration
+    .GetSection("RateLimits:Account")
+    .Get<AccountRateLimitOptions>() ?? new AccountRateLimitOptions();
+accountRateLimits.Validate();
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers.RetryAfter =
+                Math.Max(1, (int)Math.Ceiling(retryAfter.TotalSeconds))
+                    .ToString(CultureInfo.InvariantCulture);
+        }
+
+        context.HttpContext.Response.ContentType = "text/plain; charset=utf-8";
+        await context.HttpContext.Response.WriteAsync(
+            "Bạn thao tác quá nhanh. Vui lòng thử lại sau.",
+            cancellationToken);
+    };
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var path = context.Request.Path.Value;
+        var (policyName, permitLimit, windowSeconds) =
+            context.Request.Method == HttpMethods.Post && string.Equals(
+                path,
+                AccountRateLimitPolicies.LoginPath,
+                StringComparison.OrdinalIgnoreCase)
+                ? (
+                    AccountRateLimitPolicies.Login,
+                    accountRateLimits.LoginPermitLimit,
+                    accountRateLimits.LoginWindowSeconds)
+                : context.Request.Method == HttpMethods.Post && string.Equals(
+                    path,
+                    AccountRateLimitPolicies.PasswordResetPath,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? (
+                        AccountRateLimitPolicies.PasswordReset,
+                        accountRateLimits.PasswordResetPermitLimit,
+                        accountRateLimits.PasswordResetWindowSeconds)
+                    : (null, 0, 0);
+
+        if (policyName is null)
+        {
+            return RateLimitPartition.GetNoLimiter("unlimited");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"{policyName}:{GetRateLimitPartitionKey(context)}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permitLimit,
+                Window = TimeSpan.FromSeconds(windowSeconds),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+});
 builder.Services
     .AddHealthChecks()
     .AddCheck(
@@ -35,6 +98,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -58,6 +122,9 @@ app.MapControllerRoute(
 
 
 app.Run();
+
+static string GetRateLimitPartitionKey(HttpContext context) =>
+    context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
 static Task WriteHealthStatusAsync(HttpContext context, HealthReport report)
 {

@@ -494,6 +494,66 @@ public sealed class UserManagementEndpointTests
             HttpStatusCode.Redirect);
     }
 
+    [Fact]
+    public async Task Login_and_password_reset_requests_are_rate_limited_with_retry_after()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var loginToken = await GetPageTokenAsync(client, "/Account/Login");
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            using var loginResponse = await client.PostAsync(
+                "/Account/Login",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = loginToken,
+                    ["Email"] = factory.SuperAdminEmail,
+                    ["Password"] = "IncorrectPassword123!",
+                    ["RememberMe"] = "false"
+                }));
+            Assert.Equal(HttpStatusCode.OK, loginResponse.StatusCode);
+        }
+
+        using var limitedLoginResponse = await client.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = loginToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Password"] = "IncorrectPassword123!",
+                ["RememberMe"] = "false"
+            }));
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedLoginResponse.StatusCode);
+        Assert.NotNull(limitedLoginResponse.Headers.RetryAfter);
+
+        var resetToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            using var resetResponse = await client.PostAsync(
+                "/Account/ForgotPassword",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = resetToken,
+                    ["Email"] = $"unknown-{attempt}@example.test"
+                }));
+            Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+        }
+
+        using var limitedResetResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = resetToken,
+                ["Email"] = "unknown-three@example.test"
+            }));
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedResetResponse.StatusCode);
+        Assert.NotNull(limitedResetResponse.Headers.RetryAfter);
+    }
+
     private static async Task<string> GetPageTokenAsync(HttpClient client, string path)
     {
         using var response = await client.GetAsync(path);

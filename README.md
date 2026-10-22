@@ -64,6 +64,19 @@ Configure SMTP through a secret provider or environment variables:
 SMTP credentials must not be committed to source control or placed in
 `appsettings.json`.
 
+Login and password-reset POST requests are rate-limited by the remote client IP.
+Defaults are 5 login attempts per 300 seconds and 3 reset requests per 900
+seconds. Tune the limits through configuration keys
+`RateLimits__Account__LoginPermitLimit`,
+`RateLimits__Account__LoginWindowSeconds`,
+`RateLimits__Account__PasswordResetPermitLimit`, and
+`RateLimits__Account__PasswordResetWindowSeconds`. Limits must be positive
+integers; permit limits are capped at 1000 and windows at 86400 seconds.
+Rejected requests receive HTTP 429 and a `Retry-After` header. When hosting
+behind a reverse proxy, configure ASP.NET Core Forwarded Headers with only
+trusted proxies/networks so the remote IP reflects the actual client; do not
+trust arbitrary forwarded headers.
+
 ## Dynamic permissions
 
 Protect an MVC action with a policy such as
