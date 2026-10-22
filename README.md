@@ -68,6 +68,17 @@ reload. Write requests require the ASP.NET Core Anti-Forgery token. The
 `Administrator` and `SuperAdmin` system roles cannot be renamed or deleted,
 and a role assigned to users cannot be deleted.
 
+## User management
+
+Users with `Permissions.Users.Read` can open `/Admin/Users`. Search and paging
+use JSON endpoints; authorized operators can create accounts with an initial
+password, update email and role assignments, lock/unlock accounts, and delete
+accounts without reloading the page. All write requests require an
+ASP.NET Core Anti-Forgery token. Editing does not change an existing password.
+Operators cannot lock or delete their own account, and the last SuperAdmin
+cannot be locked, removed from the SuperAdmin role, or deleted. Assigning the
+SuperAdmin role additionally requires `Permissions.Access.Manage`.
+
 ## Role permissions
 
 Users with `Permissions.Access.Read` can open `/Admin/Permissions` to inspect

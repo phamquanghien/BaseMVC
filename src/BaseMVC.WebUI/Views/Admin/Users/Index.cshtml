@@ -1,0 +1,138 @@
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "Quản lý người dùng";
+    var canCreateUser = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Users.Create")).Succeeded;
+    var canUpdateUser = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Users.Update")).Succeeded;
+    var canDeleteUser = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Users.Delete")).Succeeded;
+}
+
+<section class="space-y-6" data-user-manager
+         data-search-url="@Url.Action("Search", "Users", new { area = "" })"
+         data-roles-url="@Url.Action("GetAssignableRoles", "Users", new { area = "" })"
+         data-create-url="@Url.Action("Create", "Users", new { area = "" })"
+         data-edit-url-template="@Url.Action("Edit", "Users", new { area = "", id = "__userId__" })"
+         data-delete-url-template="@Url.Action("Delete", "Users", new { area = "", id = "__userId__" })"
+         data-can-create="@canCreateUser.ToString().ToLowerInvariant()"
+         data-can-update="@canUpdateUser.ToString().ToLowerInvariant()"
+         data-can-delete="@canDeleteUser.ToString().ToLowerInvariant()">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <div class="badge badge-primary badge-outline">Identity</div>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight">Quản lý người dùng</h1>
+            <p class="mt-2 text-base-content/70">Tìm kiếm, phân trang, quản lý trạng thái và role tài khoản.</p>
+        </div>
+        @if (canCreateUser)
+        {
+            <button type="button" class="btn btn-primary" data-user-create>
+                <span aria-hidden="true">＋</span> Thêm người dùng
+            </button>
+        }
+    </div>
+
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-5 p-4 sm:p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label class="input input-bordered flex w-full items-center gap-2 sm:max-w-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" stroke-width="2" />
+                        <path stroke-linecap="round" stroke-width="2" d="m20 20-4-4" />
+                    </svg>
+                    <input type="search" class="grow" placeholder="Tìm theo email..." aria-label="Tìm theo email" data-user-search />
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <span>Số dòng</span>
+                    <select class="select select-bordered select-sm" aria-label="Số người dùng mỗi trang" data-user-page-size>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="alert alert-error hidden" role="alert" data-user-error></div>
+            <div class="overflow-x-auto rounded-box border border-base-300">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Email / tên đăng nhập</th>
+                            <th>Role</th>
+                            <th>Trạng thái</th>
+                            <th class="text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody data-user-rows>
+                        <tr><td colspan="4" class="py-10 text-center text-base-content/60">Đang tải danh sách người dùng...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-base-content/70" aria-live="polite" data-user-count></p>
+                <div class="join self-end" aria-label="Phân trang người dùng">
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang trước" data-user-previous>«</button>
+                    <button type="button" class="btn btn-sm join-item no-animation" aria-live="polite" data-user-page-label>Trang 1 / 1</button>
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang sau" data-user-next>»</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="user-antiforgery" asp-controller="Account" asp-action="Login" method="post" asp-antiforgery="false" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <dialog class="modal" data-user-modal>
+        <div class="modal-box max-w-2xl">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold" data-user-modal-title>Thêm người dùng</h2>
+            <p class="mt-2 text-sm text-base-content/70" data-user-modal-description>Tạo tài khoản Identity mới.</p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-user-modal-error></div>
+            <div class="mt-4 space-y-4">
+                <div>
+                    <label for="user-email" class="label"><span class="label-text font-medium">Email</span></label>
+                    <input id="user-email" type="email" class="input input-bordered w-full" maxlength="256" autocomplete="email" required />
+                </div>
+                <div data-user-password-container>
+                    <label for="user-password" class="label"><span class="label-text font-medium">Mật khẩu ban đầu</span></label>
+                    <input id="user-password" type="password" class="input input-bordered w-full" minlength="12" autocomplete="new-password" />
+                    <p class="mt-1 text-xs text-base-content/60">Tối thiểu 12 ký tự; mật khẩu không hiển thị lại sau khi tạo.</p>
+                </div>
+                <label class="label cursor-pointer justify-start gap-3 hidden" data-user-lock-container>
+                    <input type="checkbox" class="checkbox checkbox-primary" data-user-locked />
+                    <span class="label-text">Khóa đăng nhập tài khoản này</span>
+                </label>
+                <fieldset>
+                    <legend class="label"><span class="label-text font-medium">Role được gán</span></legend>
+                    <div class="grid gap-2 rounded-box border border-base-300 p-3 sm:grid-cols-2" data-user-roles></div>
+                </fieldset>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-user-cancel>Hủy</button>
+                <button type="button" class="btn btn-primary" data-user-submit>Lưu</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+
+    <dialog class="modal" data-user-delete-modal>
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold">Xác nhận xóa người dùng</h2>
+            <p class="mt-3 text-base-content/70" data-user-delete-description></p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-user-delete-error></div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-user-delete-cancel>Hủy</button>
+                <button type="button" class="btn btn-error" data-user-delete-confirm>Xóa tài khoản</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+</section>
+
+@section Scripts {
+    <script src="~/js/admin-users.js" asp-append-version="true"></script>
+}
