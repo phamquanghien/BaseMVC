@@ -1,8 +1,69 @@
 ﻿@{
-    ViewData["Title"] = "Home Page";
+    ViewData["Title"] = "Nền tảng khởi đầu";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<section class="hero overflow-hidden rounded-3xl bg-base-100 shadow-sm">
+    <div class="hero-content w-full flex-col items-start gap-10 px-6 py-12 sm:px-10 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-16">
+        <div class="max-w-2xl">
+            <div class="badge badge-primary badge-outline mb-5 gap-2 px-3 py-3">ASP.NET Core MVC · .NET 10</div>
+            <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+                Nền móng vững chắc cho <span class="text-primary">ứng dụng tiếp theo</span>
+            </h1>
+            <p class="mt-6 max-w-xl text-lg leading-8 text-base-content/70">
+                BaseMVC cung cấp cấu trúc rõ ràng để đội ngũ tập trung xây dựng sản phẩm, với giao diện responsive và các lớp ứng dụng được tách biệt.
+            </p>
+            <div class="mt-8 flex flex-wrap gap-3">
+                <a class="btn btn-primary" asp-controller="Home" asp-action="Privacy">Khám phá nền tảng</a>
+                <a class="btn btn-outline" href="https://learn.microsoft.com/aspnet/core" target="_blank" rel="noopener noreferrer">Tài liệu ASP.NET Core</a>
+            </div>
+        </div>
+        <div class="card w-full max-w-md border border-base-300 bg-base-100">
+            <div class="card-body gap-5">
+                <div>
+                    <p class="text-sm font-semibold uppercase tracking-wider text-primary">Foundation Core</p>
+                    <h2 class="card-title mt-2 text-2xl">Sẵn sàng mở rộng</h2>
+                    <p class="mt-2 text-base-content/70">Các project được chia theo trách nhiệm để tạo nền cho những tính năng tiếp theo.</p>
+                </div>
+                <div class="divider my-0"></div>
+                <ul class="space-y-3">
+                    <li class="flex items-center gap-3">
+                        <span class="badge badge-success badge-sm">✓</span>
+                        <span>Domain và Application tách biệt</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <span class="badge badge-success badge-sm">✓</span>
+                        <span>Infrastructure và MVC WebUI</span>
+                    </li>
+                    <li class="flex items-center gap-3">
+                        <span class="badge badge-success badge-sm">✓</span>
+                        <span>Tailwind CSS cùng daisyUI</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Các lớp nền tảng">
+    <article class="card border border-base-300 bg-base-100">
+        <div class="card-body">
+            <div class="badge badge-primary badge-outline">01 · Domain</div>
+            <h2 class="card-title mt-2">Mô hình nghiệp vụ</h2>
+            <p class="text-base-content/70">Nơi đặt các quy tắc và khái niệm cốt lõi, không phụ thuộc vào giao diện hay hạ tầng.</p>
+        </div>
+    </article>
+    <article class="card border border-base-300 bg-base-100">
+        <div class="card-body">
+            <div class="badge badge-secondary badge-outline">02 · Application</div>
+            <h2 class="card-title mt-2">Luồng ứng dụng</h2>
+            <p class="text-base-content/70">Tổ chức các ca sử dụng và điều phối nghiệp vụ qua những hợp đồng rõ ràng.</p>
+        </div>
+    </article>
+    <article class="card border border-base-300 bg-base-100 sm:col-span-2 lg:col-span-1">
+        <div class="card-body">
+            <div class="badge badge-accent badge-outline">03 · Infrastructure + WebUI</div>
+            <h2 class="card-title mt-2">Tích hợp và trải nghiệm</h2>
+            <p class="text-base-content/70">Kết nối dịch vụ bên ngoài và cung cấp giao diện MVC responsive cho người dùng.</p>
+        </div>
+    </article>
 </div>

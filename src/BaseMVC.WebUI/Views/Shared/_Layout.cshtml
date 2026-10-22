@@ -1,49 +1,57 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="vi" data-theme="light">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - BaseMVC.WebUI</title>
-    <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>@ViewData["Title"] - BaseMVC</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/BaseMVC.WebUI.styles.css" asp-append-version="true" />
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">BaseMVC.WebUI</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
+<body class="min-h-screen bg-base-200 text-base-content">
+    <div class="flex min-h-screen flex-col">
+        <header class="sticky top-0 z-20 border-b border-base-300 bg-base-100/95 shadow-sm backdrop-blur">
+            <nav class="navbar mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Điều hướng chính">
+                <div class="navbar-start">
+                    <a class="btn btn-ghost gap-2 px-2 text-lg font-bold tracking-tight" asp-area="" asp-controller="Home" asp-action="Index" aria-label="BaseMVC - Trang chủ">
+                        <span class="grid size-9 place-items-center rounded-xl bg-primary text-primary-content">B</span>
+                        <span>BaseMVC</span>
+                    </a>
+                </div>
+                <div class="navbar-center hidden md:flex">
+                    <ul class="menu menu-horizontal gap-1 px-1">
+                        <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
+                        <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
                     </ul>
                 </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+                <div class="navbar-end gap-2">
+                    <a class="btn btn-primary btn-sm hidden sm:inline-flex" asp-area="" asp-controller="Home" asp-action="Index">Bắt đầu</a>
+                    <div class="dropdown dropdown-end md:hidden">
+                        <button class="btn btn-ghost btn-square" type="button" aria-label="Mở menu" aria-haspopup="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                        <ul class="menu dropdown-content z-30 mt-3 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
+                            <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
+                            <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+        </header>
+
+        <main id="main-content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
             @RenderBody()
         </main>
-    </div>
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - BaseMVC.WebUI - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
-    </footer>
+        <footer class="border-t border-base-300 bg-base-100">
+            <div class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-base-content/70 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+                <p>&copy; @DateTime.Now.Year BaseMVC. Nền tảng khởi đầu cho ứng dụng của bạn.</p>
+                <a class="link link-hover" asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a>
+            </div>
+        </footer>
+    </div>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>

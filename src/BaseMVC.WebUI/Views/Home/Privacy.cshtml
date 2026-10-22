@@ -1,6 +1,14 @@
 ﻿@{
-    ViewData["Title"] = "Privacy Policy";
+    ViewData["Title"] = "Quyền riêng tư";
 }
-<h1>@ViewData["Title"]</h1>
 
-<p>Use this page to detail your site's privacy policy.</p>
+<section class="card mx-auto max-w-3xl border border-base-300 bg-base-100 shadow-sm">
+    <div class="card-body gap-4 p-6 sm:p-10">
+        <div class="badge badge-primary badge-outline">Thông tin</div>
+        <h1 class="card-title text-3xl">@ViewData["Title"]</h1>
+        <p class="text-base leading-7 text-base-content/70">
+            Trang này dành cho chính sách quyền riêng tư của ứng dụng. Hãy cập nhật nội dung phù hợp với cách ứng dụng thu thập, sử dụng và bảo vệ dữ liệu.
+        </p>
+        <a class="btn btn-ghost btn-sm mt-2 self-start" asp-controller="Home" asp-action="Index">← Quay lại trang chủ</a>
+    </div>
+</section>
