@@ -67,6 +67,53 @@ public sealed class AccountController(
     }
 
     [Authorize]
+    [HttpGet]
+    public IActionResult ChangePassword()
+    {
+        ViewData["PasswordChanged"] = TempData["PasswordChanged"];
+        return View(new ChangePasswordViewModel());
+    }
+
+    [Authorize]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangePassword(ChangePasswordViewModel model)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var user = await userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return Challenge();
+        }
+
+        var result = await userManager.ChangePasswordAsync(
+            user,
+            model.CurrentPassword,
+            model.NewPassword);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    error.Code == "PasswordMismatch"
+                        ? "Mật khẩu hiện tại không chính xác."
+                        : error.Description);
+            }
+
+            return View(model);
+        }
+
+        await signInManager.RefreshSignInAsync(user);
+        TempData["PasswordChanged"] = true;
+        return RedirectToAction(nameof(ChangePassword));
+    }
+
+    [Authorize]
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout(string? returnUrl = null)

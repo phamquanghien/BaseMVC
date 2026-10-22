@@ -48,6 +48,7 @@
                     @if (User.Identity?.IsAuthenticated == true)
                     {
                         <span class="hidden max-w-40 truncate text-sm text-base-content/70 sm:inline" title="@User.Identity.Name">@User.Identity.Name</span>
+                        <a class="btn btn-ghost btn-sm hidden sm:inline-flex" asp-controller="Account" asp-action="ChangePassword">Đổi mật khẩu</a>
                         <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false" class="hidden sm:block">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="returnUrl" value="/" />
@@ -81,6 +82,7 @@
                             }
                             @if (User.Identity?.IsAuthenticated == true)
                             {
+                                <li><a asp-controller="Account" asp-action="ChangePassword">Đổi mật khẩu</a></li>
                                 <li>
                                     <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false">
                                         @Html.AntiForgeryToken()

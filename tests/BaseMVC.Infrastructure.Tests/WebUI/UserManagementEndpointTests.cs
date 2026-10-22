@@ -264,6 +264,71 @@ public sealed class UserManagementEndpointTests
         Assert.Equal(HttpStatusCode.Conflict, deleteLastSuperAdminResponse.StatusCode);
     }
 
+    [Fact]
+    public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
+        using var pageResponse = await client.GetAsync("/Account/ChangePassword");
+        pageResponse.EnsureSuccessStatusCode();
+        var page = await pageResponse.Content.ReadAsStringAsync();
+        var token = ExtractAntiforgeryToken(page);
+
+        using var missingTokenResponse = await client.PostAsync(
+            "/Account/ChangePassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["CurrentPassword"] = factory.SuperAdminPassword,
+                ["NewPassword"] = "UpdatedPassword123!",
+                ["ConfirmPassword"] = "UpdatedPassword123!"
+            }));
+        Assert.Equal(HttpStatusCode.BadRequest, missingTokenResponse.StatusCode);
+
+        using var invalidCurrentPasswordResponse = await client.PostAsync(
+            "/Account/ChangePassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["CurrentPassword"] = "IncorrectPassword123!",
+                ["NewPassword"] = "UpdatedPassword123!",
+                ["ConfirmPassword"] = "UpdatedPassword123!"
+            }));
+        Assert.Equal(HttpStatusCode.OK, invalidCurrentPasswordResponse.StatusCode);
+        Assert.Contains(
+            "Mật khẩu hiện tại không chính xác.",
+            WebUtility.HtmlDecode(await invalidCurrentPasswordResponse.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+
+        using var changeResponse = await client.PostAsync(
+            "/Account/ChangePassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["CurrentPassword"] = factory.SuperAdminPassword,
+                ["NewPassword"] = "UpdatedPassword123!",
+                ["ConfirmPassword"] = "UpdatedPassword123!"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, changeResponse.StatusCode);
+        Assert.EndsWith("/Account/ChangePassword", changeResponse.Headers.Location?.OriginalString);
+
+        await SignOutAsync(client);
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword,
+            HttpStatusCode.OK);
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            "UpdatedPassword123!",
+            HttpStatusCode.Redirect);
+    }
+
     private static async Task SignInAsync(HttpClient client, string email, string password)
     {
         using var loginPageResponse = await client.GetAsync("/Account/Login");
@@ -280,6 +345,42 @@ public sealed class UserManagementEndpointTests
                 ["RememberMe"] = "false"
             }));
         Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+    }
+
+    private static async Task AssertLoginResponseAsync(
+        HttpClient client,
+        string email,
+        string password,
+        HttpStatusCode expectedStatus)
+    {
+        using var loginPageResponse = await client.GetAsync("/Account/Login");
+        loginPageResponse.EnsureSuccessStatusCode();
+        var token = ExtractAntiforgeryToken(await loginPageResponse.Content.ReadAsStringAsync());
+        using var response = await client.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["Email"] = email,
+                ["Password"] = password,
+                ["RememberMe"] = "false"
+            }));
+        Assert.Equal(expectedStatus, response.StatusCode);
+    }
+
+    private static async Task SignOutAsync(HttpClient client)
+    {
+        using var pageResponse = await client.GetAsync("/Account/ChangePassword");
+        pageResponse.EnsureSuccessStatusCode();
+        var token = ExtractAntiforgeryToken(await pageResponse.Content.ReadAsStringAsync());
+        using var response = await client.PostAsync(
+            "/Account/Logout",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["returnUrl"] = "/"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
     private static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)

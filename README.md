@@ -34,6 +34,10 @@ login and logout forms include ASP.NET Core Anti-Forgery tokens. Cookie
 challenges use `/Account/Login`; denied authorization uses
 `/Account/AccessDenied`.
 
+Authenticated users can change their password at `/Account/ChangePassword`.
+The operation requires the current password, enforces the configured Identity
+password policy, and refreshes the current sign-in after a successful change.
+
 ## Dynamic permissions
 
 Protect an MVC action with a policy such as
