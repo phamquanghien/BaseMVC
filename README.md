@@ -148,3 +148,7 @@ filter records by event, outcome, and internal IDs with server-side paging.
 Results are ordered newest-first by append-only entry ID. Only `SuperAdmin`
 receives this permission by default; it can be granted to other roles through
 the dynamic permission manager.
+
+Audit records are retained for 90 days. A background service deletes records
+older than 90 days at application startup and then every 24 hours. If cleanup
+fails, the failure is logged and the next scheduled run retries it.

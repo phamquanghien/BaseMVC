@@ -1,5 +1,6 @@
 using BaseMVC.Infrastructure;
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.WebUI.Auditing;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.HealthChecks;
 using BaseMVC.WebUI.Security;
@@ -19,6 +20,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddHostedService<AuditLogRetentionService>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;

@@ -7,6 +7,7 @@ using BaseMVC.WebUI.Email;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
+using BaseMVC.WebUI.Auditing;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -17,6 +18,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace BaseMVC.Infrastructure.Tests.WebUI;
@@ -805,6 +807,58 @@ public sealed class UserManagementEndpointTests
             regularUserEmail,
             await filterResponse.Content.ReadAsStringAsync(),
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Audit_retention_deletes_only_entries_older_than_90_days()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        var nowUtc = DateTimeOffset.UtcNow;
+        var cutoff = nowUtc.AddDays(-AuditLogRetentionService.RetentionDays);
+        long expiredId;
+        long boundaryId;
+        long recentId;
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var expired = new AuditLogEntry
+            {
+                OccurredAtUtc = cutoff.AddTicks(-1),
+                EventType = nameof(AuditEventType.Login),
+                Outcome = nameof(AuditOutcome.Failed)
+            };
+            var boundary = new AuditLogEntry
+            {
+                OccurredAtUtc = cutoff,
+                EventType = nameof(AuditEventType.Login),
+                Outcome = nameof(AuditOutcome.Succeeded)
+            };
+            var recent = new AuditLogEntry
+            {
+                OccurredAtUtc = cutoff.AddTicks(1),
+                EventType = nameof(AuditEventType.Login),
+                Outcome = nameof(AuditOutcome.Succeeded)
+            };
+            dbContext.AuditLogEntries.AddRange(expired, boundary, recent);
+            await dbContext.SaveChangesAsync();
+            expiredId = expired.Id;
+            boundaryId = boundary.Id;
+            recentId = recent.Id;
+        }
+
+        var retentionService = new AuditLogRetentionService(
+            factory.Services.GetRequiredService<IServiceScopeFactory>(),
+            NullLogger<AuditLogRetentionService>.Instance);
+        var deletedCount = await retentionService.DeleteExpiredEntriesAsync(nowUtc);
+
+        Assert.Equal(1, deletedCount);
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationContext = verificationScope.ServiceProvider
+            .GetRequiredService<ApplicationDbContext>();
+        Assert.False(await verificationContext.AuditLogEntries.AnyAsync(entry => entry.Id == expiredId));
+        Assert.True(await verificationContext.AuditLogEntries.AnyAsync(entry => entry.Id == boundaryId));
+        Assert.True(await verificationContext.AuditLogEntries.AnyAsync(entry => entry.Id == recentId));
     }
 
     private static async Task SignInAsync(HttpClient client, string email, string password)
