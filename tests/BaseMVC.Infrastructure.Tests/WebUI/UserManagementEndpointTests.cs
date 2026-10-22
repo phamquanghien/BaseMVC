@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using BaseMVC.WebUI.Email;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
@@ -15,6 +16,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.WebUtilities;
 
 namespace BaseMVC.Infrastructure.Tests.WebUI;
 
@@ -330,6 +332,176 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Password_reset_uses_configured_public_url_and_does_not_disclose_unknown_email()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var token = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Account/ForgotPassword")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["Email"] = factory.SuperAdminEmail
+            })
+        };
+        request.Headers.Host = "attacker.example";
+        using var forgotResponse = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
+        Assert.Contains(
+            "Nếu email khớp với tài khoản",
+            await forgotResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
+        var resetUrl = Assert.IsType<string>(factory.SentResetUrl);
+        var resetUri = new Uri(resetUrl);
+        Assert.Equal("basemvc.example.test", resetUri.Host);
+        Assert.Equal("/Account/ResetPassword", resetUri.AbsolutePath);
+        var query = QueryHelpers.ParseQuery(resetUri.Query);
+        var code = Assert.Single(query["code"]);
+        var email = Assert.Single(query["email"]);
+        Assert.NotNull(code);
+        Assert.NotNull(email);
+        Assert.Equal(factory.SuperAdminEmail, email);
+
+        var confirmationContent = await forgotResponse.Content.ReadAsStringAsync();
+        var unknownToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var unknownResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = unknownToken,
+                ["Email"] = "unknown-account@example.test"
+            }));
+        Assert.Equal(HttpStatusCode.OK, unknownResponse.StatusCode);
+        Assert.Equal(
+            confirmationContent,
+            await unknownResponse.Content.ReadAsStringAsync());
+        Assert.Equal(factory.SuperAdminEmail, factory.LastSentRecipient);
+
+        factory.FailEmailDelivery();
+        var failedDeliveryToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var failedDeliveryResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = failedDeliveryToken,
+                ["Email"] = factory.SuperAdminEmail
+            }));
+        Assert.Equal(HttpStatusCode.OK, failedDeliveryResponse.StatusCode);
+        Assert.Equal(
+            confirmationContent,
+            await failedDeliveryResponse.Content.ReadAsStringAsync());
+
+        var resetPageUrl = QueryHelpers.AddQueryString(
+            "/Account/ResetPassword",
+            new Dictionary<string, string?>
+            {
+                ["email"] = factory.SuperAdminEmail,
+                ["code"] = code
+            });
+        var resetToken = await GetPageTokenAsync(client, resetPageUrl);
+        using var resetResponse = await client.PostAsync(
+            "/Account/ResetPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = resetToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Code"] = code,
+                ["Password"] = "RecoveredPassword123!",
+                ["ConfirmPassword"] = "RecoveredPassword123!"
+            }));
+        Assert.Equal(HttpStatusCode.OK, resetResponse.StatusCode);
+        Assert.Contains(
+            "Mật khẩu đã cập nhật",
+            WebUtility.HtmlDecode(await resetResponse.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword,
+            HttpStatusCode.OK);
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            "RecoveredPassword123!",
+            HttpStatusCode.Redirect);
+    }
+
+    [Fact]
+    public async Task Password_reset_requires_antiforgery_and_invalid_tokens_cannot_change_password()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var missingTokenResponse = await client.PostAsJsonAsync(
+            "/Account/ForgotPassword",
+            new { email = factory.SuperAdminEmail });
+        Assert.Equal(HttpStatusCode.BadRequest, missingTokenResponse.StatusCode);
+
+        var token = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var forgotResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = token,
+                ["Email"] = factory.SuperAdminEmail
+            }));
+        Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
+
+        var resetUrl = Assert.IsType<string>(factory.SentResetUrl);
+        var resetQuery = QueryHelpers.ParseQuery(new Uri(resetUrl).Query);
+        var resetCode = Assert.Single(resetQuery["code"]);
+        Assert.NotNull(resetCode);
+        var resetToken = await GetPageTokenAsync(
+            client,
+            QueryHelpers.AddQueryString(
+                "/Account/ResetPassword",
+                new Dictionary<string, string?>
+                {
+                    ["email"] = factory.SuperAdminEmail,
+                    ["code"] = resetCode
+                }));
+        var invalidCode = Convert.ToBase64String("invalid-reset-token"u8.ToArray());
+        using var invalidResetResponse = await client.PostAsync(
+            "/Account/ResetPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = resetToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Code"] = invalidCode,
+                ["Password"] = "InvalidAttempt123!",
+                ["ConfirmPassword"] = "InvalidAttempt123!"
+            }));
+        Assert.Equal(HttpStatusCode.OK, invalidResetResponse.StatusCode);
+        Assert.Contains(
+            "không hợp lệ hoặc đã hết hạn",
+            WebUtility.HtmlDecode(await invalidResetResponse.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword,
+            HttpStatusCode.Redirect);
+    }
+
+    private static async Task<string> GetPageTokenAsync(HttpClient client, string path)
+    {
+        using var response = await client.GetAsync(path);
+        response.EnsureSuccessStatusCode();
+        return ExtractAntiforgeryToken(await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
     public async Task Health_endpoints_are_anonymous_and_report_liveness_and_database_readiness()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -476,10 +648,17 @@ public sealed class UserManagementEndpointTests
     private sealed class UserManagementWebApplicationFactory : WebApplicationFactory<Program>
     {
         private readonly SqliteConnection _connection = new("Data Source=:memory:");
+        private readonly FakeEmailSender _emailSender = new();
 
         public string SuperAdminEmail { get; } = "integration-superadmin@example.test";
 
         public string SuperAdminPassword { get; } = "IntegrationAdmin123!";
+
+        public string? SentResetUrl => _emailSender.LastResetUrl;
+
+        public string? LastSentRecipient => _emailSender.LastRecipient;
+
+        public void FailEmailDelivery() => _emailSender.ShouldFail = true;
 
         public UserManagementWebApplicationFactory()
         {
@@ -513,6 +692,10 @@ public sealed class UserManagementEndpointTests
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:DefaultConnection"] = "Data Source=:memory:",
+                    ["Email:SmtpHost"] = "localhost",
+                    ["Email:SmtpPort"] = "587",
+                    ["Email:FromAddress"] = "no-reply@basemvc.example.test",
+                    ["Email:PublicBaseUrl"] = "https://basemvc.example.test",
                     ["SeedAdmin:Email"] = SuperAdminEmail,
                     ["SeedAdmin:Password"] = SuperAdminPassword
                 });
@@ -524,6 +707,8 @@ public sealed class UserManagementEndpointTests
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
                 services.RemoveAll<ApplicationDbContext>();
                 services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+                services.RemoveAll<IEmailSender>();
+                services.AddSingleton<IEmailSender>(_emailSender);
             });
         }
 
@@ -533,6 +718,32 @@ public sealed class UserManagementEndpointTests
             if (disposing)
             {
                 _connection.Dispose();
+            }
+        }
+
+        private sealed class FakeEmailSender : IEmailSender
+        {
+            public string? LastRecipient { get; private set; }
+
+            public string? LastResetUrl { get; private set; }
+
+            public bool ShouldFail { get; set; }
+
+            public Task SendPasswordResetAsync(
+                string recipient,
+                string resetUrl,
+                CancellationToken cancellationToken = default)
+            {
+                LastRecipient = recipient;
+                LastResetUrl = resetUrl;
+                if (ShouldFail)
+                {
+                    throw new EmailDeliveryException(
+                        "Test email delivery failure.",
+                        new InvalidOperationException("Simulated SMTP failure."));
+                }
+
+                return Task.CompletedTask;
             }
         }
     }

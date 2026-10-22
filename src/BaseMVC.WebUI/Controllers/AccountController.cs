@@ -1,15 +1,20 @@
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.Models.Account;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace BaseMVC.WebUI.Controllers;
 
 [Route("[controller]/[action]")]
 public sealed class AccountController(
     SignInManager<ApplicationUser> signInManager,
-    UserManager<ApplicationUser> userManager) : Controller
+    UserManager<ApplicationUser> userManager,
+    IEmailSender emailSender,
+    IOptions<EmailOptions> emailOptions,
+    ILogger<AccountController> logger) : Controller
 {
     [AllowAnonymous]
     [HttpGet]
@@ -64,6 +69,117 @@ public sealed class AccountController(
         }
 
         return View(model);
+    }
+
+    [AllowAnonymous]
+    [HttpGet]
+    public IActionResult ForgotPassword() => View(new ForgotPasswordViewModel());
+
+    [AllowAnonymous]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ForgotPassword(
+        ForgotPasswordViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        Uri publicBaseUri;
+        try
+        {
+            publicBaseUri = emailOptions.Value.Validate();
+        }
+        catch (InvalidOperationException exception)
+        {
+            logger.LogError(exception, "Password recovery email configuration is invalid.");
+            ModelState.AddModelError(
+                string.Empty,
+                "Dịch vụ khôi phục mật khẩu chưa được cấu hình đầy đủ. Vui lòng liên hệ quản trị viên.");
+            return View(model);
+        }
+
+        var user = await userManager.FindByEmailAsync(model.Email.Trim());
+        if (user is null || !await userManager.IsEmailConfirmedAsync(user))
+        {
+            return View("ForgotPasswordConfirmation");
+        }
+
+        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
+        var callbackPath = Url.Action(
+            nameof(ResetPassword),
+            "Account",
+            new { email = user.Email, code = resetToken });
+        if (string.IsNullOrWhiteSpace(callbackPath))
+        {
+            throw new InvalidOperationException("Could not generate the password-reset callback path.");
+        }
+
+        var resetUrl = new Uri(publicBaseUri, callbackPath).AbsoluteUri;
+        try
+        {
+            await emailSender.SendPasswordResetAsync(user.Email!, resetUrl, cancellationToken);
+        }
+        catch (EmailDeliveryException exception)
+        {
+            logger.LogError(exception, "Password recovery email delivery failed.");
+        }
+
+        return View("ForgotPasswordConfirmation");
+    }
+
+    [AllowAnonymous]
+    [HttpGet]
+    public IActionResult ResetPassword(string? email, string? code)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(code))
+        {
+            return View("ResetPasswordInvalid");
+        }
+
+        return View(new ResetPasswordViewModel
+        {
+            Email = email,
+            Code = code
+        });
+    }
+
+    [AllowAnonymous]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ResetPassword(
+        ResetPasswordViewModel model,
+        CancellationToken cancellationToken)
+    {
+        if (!ModelState.IsValid)
+        {
+            return View(model);
+        }
+
+        var user = await userManager.FindByEmailAsync(model.Email);
+        if (user is null)
+        {
+            return View("ResetPasswordInvalid");
+        }
+
+        var result = await userManager.ResetPasswordAsync(user, model.Code, model.Password);
+        if (!result.Succeeded)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    error.Code == "InvalidToken"
+                        ? "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."
+                        : error.Description);
+            }
+
+            return View(model);
+        }
+
+        return View("ResetPasswordConfirmation");
     }
 
     [Authorize]

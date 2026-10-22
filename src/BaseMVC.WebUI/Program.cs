@@ -1,5 +1,6 @@
 using BaseMVC.Infrastructure;
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.HealthChecks;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -8,6 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services
     .AddHealthChecks()
     .AddCheck(

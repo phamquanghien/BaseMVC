@@ -46,6 +46,24 @@ Authenticated users can change their password at `/Account/ChangePassword`.
 The operation requires the current password, enforces the configured Identity
 password policy, and refreshes the current sign-in after a successful change.
 
+Users can request a one-time reset link at `/Account/ForgotPassword`. Reset
+requests use the configured canonical `Email:PublicBaseUrl`, require a
+confirmed email address, and do not reveal whether an account exists. Reset
+tokens use the ASP.NET Core Identity token provider and its configured
+expiration.
+
+Configure SMTP through a secret provider or environment variables:
+
+- `Email__SmtpHost`
+- `Email__SmtpPort` (587 by default; uses required STARTTLS)
+- `Email__SmtpUsername` and `Email__SmtpPassword` (both set or both omitted)
+- `Email__UseSslOnConnect` (`true` for implicit TLS, commonly port 465)
+- `Email__FromAddress` and optional `Email__FromName`
+- `Email__PublicBaseUrl` (canonical public application URL; use HTTPS in production)
+
+SMTP credentials must not be committed to source control or placed in
+`appsettings.json`.
+
 ## Dynamic permissions
 
 Protect an MVC action with a policy such as
