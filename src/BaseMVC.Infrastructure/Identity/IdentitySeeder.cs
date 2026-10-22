@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +34,8 @@ public sealed class IdentitySeeder(
                     $"Could not seed Identity role '{roleName}': {FormatErrors(result)}");
             }
         }
+
+        await SeedRolePermissionsAsync();
 
         var email = configuration["SeedAdmin:Email"];
         var password = configuration["SeedAdmin:Password"];
@@ -89,4 +93,36 @@ public sealed class IdentitySeeder(
 
     private static string FormatErrors(IdentityResult result) =>
         string.Join("; ", result.Errors.Select(error => $"{error.Code}: {error.Description}"));
+
+    private async Task SeedRolePermissionsAsync()
+    {
+        foreach (var roleName in IdentitySeedRoles.All)
+        {
+            var role = await roleManager.FindByNameAsync(roleName)
+                ?? throw new InvalidOperationException(
+                    $"Identity role '{roleName}' was not found after seeding.");
+            var existingPermissions = (await roleManager.GetClaimsAsync(role))
+                .Where(claim => claim.Type == PermissionClaim.Type)
+                .Select(claim => claim.Value)
+                .ToHashSet(StringComparer.Ordinal);
+
+            foreach (var permission in PermissionCatalog.ForRole(roleName))
+            {
+                if (existingPermissions.Contains(permission.Name))
+                {
+                    continue;
+                }
+
+                var result = await roleManager.AddClaimAsync(
+                    role,
+                    new Claim(PermissionClaim.Type, permission.Name));
+
+                if (!result.Succeeded)
+                {
+                    throw new InvalidOperationException(
+                        $"Could not seed permission '{permission.Name}' for role '{roleName}': {FormatErrors(result)}");
+                }
+            }
+        }
+    }
 }
