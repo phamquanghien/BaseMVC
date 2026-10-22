@@ -20,7 +20,8 @@ public static class PermissionCatalog
         new("Roles", "Update"),
         new("Roles", "Delete"),
         new("Access", "Read"),
-        new("Access", "Manage")
+        new("Access", "Manage"),
+        new("Audit", "Read")
     ];
 
     public static IReadOnlyList<PermissionDefinition> ForRole(string roleName) =>

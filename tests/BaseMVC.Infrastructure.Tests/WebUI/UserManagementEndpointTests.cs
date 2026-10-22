@@ -730,6 +730,83 @@ public sealed class UserManagementEndpointTests
         Assert.Equal("Unhealthy", await readinessResponse.Content.ReadAsStringAsync());
     }
 
+    [Fact]
+    public async Task Audit_log_is_permission_protected_and_supports_filters_and_server_side_paging()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        var regularUserEmail = "audit-reader-without-permission@example.test";
+        await factory.CreateUserAsync(regularUserEmail, "RegularUser123!");
+
+        using var unauthorizedClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(unauthorizedClient, regularUserEmail, "RegularUser123!");
+        using var deniedResponse = await unauthorizedClient.GetAsync("/Admin/Audit/search");
+        Assert.Equal(HttpStatusCode.Forbidden, deniedResponse.StatusCode);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var timestamp = DateTimeOffset.UtcNow.AddMinutes(-1);
+            dbContext.AuditLogEntries.AddRange(Enumerable.Range(0, 12).Select(index =>
+                new AuditLogEntry
+                {
+                    OccurredAtUtc = timestamp.AddSeconds(index),
+                    EventType = index < 6
+                        ? nameof(AuditEventType.Login)
+                        : nameof(AuditEventType.UserUpdated),
+                    Outcome = index % 2 == 0
+                        ? nameof(AuditOutcome.Failed)
+                        : nameof(AuditOutcome.Succeeded),
+                    ActorUserId = $"audit-actor-{index}",
+                    TargetUserId = index == 0 ? "audit-target-special" : $"audit-target-{index}"
+                }));
+            await dbContext.SaveChangesAsync();
+        }
+
+        using var indexResponse = await client.GetAsync("/Admin/Audit");
+        Assert.Equal(HttpStatusCode.OK, indexResponse.StatusCode);
+
+        using var pageResponse = await client.GetAsync(
+            "/Admin/Audit/search?search=audit-actor-&page=1&pageSize=10");
+        Assert.Equal(HttpStatusCode.OK, pageResponse.StatusCode);
+        var page = await pageResponse.Content.ReadFromJsonAsync<AuditSearchDto>();
+        Assert.NotNull(page);
+        Assert.Equal(10, page.Items.Count);
+        Assert.Equal(12, page.TotalCount);
+        Assert.Equal(2, page.TotalPages);
+
+        using var filterResponse = await client.GetAsync(
+            "/Admin/Audit/search?eventType=Login&outcome=Failed&search=audit-target-special");
+        Assert.Equal(HttpStatusCode.OK, filterResponse.StatusCode);
+        var filtered = await filterResponse.Content.ReadFromJsonAsync<AuditSearchDto>();
+        Assert.NotNull(filtered);
+        var filteredEntry = Assert.Single(filtered.Items);
+        Assert.Equal(nameof(AuditEventType.Login), filteredEntry.EventType);
+        Assert.Equal(nameof(AuditOutcome.Failed), filteredEntry.Outcome);
+        Assert.Equal("audit-target-special", filteredEntry.TargetUserId);
+
+        using var invalidEventResponse = await client.GetAsync(
+            "/Admin/Audit/search?eventType=EmailContainsSensitiveData");
+        Assert.Equal(HttpStatusCode.BadRequest, invalidEventResponse.StatusCode);
+
+        using var longSearchResponse = await client.GetAsync(
+            $"/Admin/Audit/search?search={new string('a', 101)}");
+        Assert.Equal(HttpStatusCode.BadRequest, longSearchResponse.StatusCode);
+
+        Assert.DoesNotContain(
+            regularUserEmail,
+            await filterResponse.Content.ReadAsStringAsync(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task SignInAsync(HttpClient client, string email, string password)
     {
         using var loginPageResponse = await client.GetAsync("/Account/Login");
@@ -855,6 +932,21 @@ public sealed class UserManagementEndpointTests
 
     private sealed record RoleMutationResponse(string Id, string Name, int UserCount);
 
+    private sealed record AuditSearchDto(
+        IReadOnlyList<AuditListItemDto> Items,
+        int Page,
+        int PageSize,
+        int TotalCount,
+        int TotalPages);
+
+    private sealed record AuditListItemDto(
+        DateTimeOffset OccurredAtUtc,
+        string EventType,
+        string Outcome,
+        string? ActorUserId,
+        string? TargetUserId,
+        string? TargetRoleId);
+
     private sealed record UserDto(
         string Id,
         string Email,
@@ -899,6 +991,19 @@ public sealed class UserManagementEndpointTests
             var result = await userManager.AddClaimAsync(
                 user,
                 new Claim(PermissionClaim.Type, "Permissions.Access.Manage"));
+            Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
+        }
+
+        public async Task CreateUserAsync(string email, string password)
+        {
+            using var scope = Services.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var result = await userManager.CreateAsync(new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                EmailConfirmed = true
+            }, password);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         }
 

@@ -142,3 +142,9 @@ payloads. Audit rows deliberately have no foreign keys to Identity records so
 they remain available after a user or role is deleted. Define and enforce an
 operational retention policy appropriate to the deployment's privacy and
 compliance requirements.
+
+Users granted `Permissions.Audit.Read` can open `/Admin/Audit` to search and
+filter records by event, outcome, and internal IDs with server-side paging.
+Results are ordered newest-first by append-only entry ID. Only `SuperAdmin`
+receives this permission by default; it can be granted to other roles through
+the dynamic permission manager.

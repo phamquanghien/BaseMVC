@@ -1,0 +1,94 @@
+@{
+    ViewData["Title"] = "Nhật ký hệ thống";
+}
+
+<section class="space-y-6" data-audit-log
+         data-search-url="@Url.Action("Search", "Audit", new { area = "" })">
+    <div>
+        <div class="badge badge-primary badge-outline">Audit</div>
+        <h1 class="mt-3 text-3xl font-bold tracking-tight">Nhật ký hệ thống</h1>
+        <p class="mt-2 text-base-content/70">Tra cứu hoạt động xác thực và thay đổi quản trị. Nhật ký chỉ đọc.</p>
+    </div>
+
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-5 p-4 sm:p-6">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label class="form-control">
+                    <span class="label"><span class="label-text font-medium">Tìm theo ID / sự kiện</span></span>
+                    <input type="search" class="input input-bordered w-full" maxlength="100"
+                           placeholder="ID user hoặc role..." aria-label="Tìm audit log" data-audit-search />
+                </label>
+                <label class="form-control">
+                    <span class="label"><span class="label-text font-medium">Loại sự kiện</span></span>
+                    <select class="select select-bordered w-full" aria-label="Lọc loại sự kiện" data-audit-event>
+                        <option value="">Tất cả sự kiện</option>
+                        <option value="Login">Đăng nhập</option>
+                        <option value="PasswordResetRequested">Yêu cầu đặt lại mật khẩu</option>
+                        <option value="PasswordResetEmailDelivery">Gửi email đặt lại mật khẩu</option>
+                        <option value="PasswordResetCompleted">Hoàn tất đặt lại mật khẩu</option>
+                        <option value="PasswordChange">Đổi mật khẩu</option>
+                        <option value="Logout">Đăng xuất</option>
+                        <option value="UserCreated">Tạo người dùng</option>
+                        <option value="UserUpdated">Cập nhật người dùng</option>
+                        <option value="UserDeleted">Xóa người dùng</option>
+                        <option value="RoleCreated">Tạo role</option>
+                        <option value="RoleUpdated">Cập nhật role</option>
+                        <option value="RoleDeleted">Xóa role</option>
+                        <option value="RolePermissionsUpdated">Cập nhật quyền role</option>
+                    </select>
+                </label>
+                <label class="form-control">
+                    <span class="label"><span class="label-text font-medium">Kết quả</span></span>
+                    <select class="select select-bordered w-full" aria-label="Lọc kết quả" data-audit-outcome>
+                        <option value="">Tất cả kết quả</option>
+                        <option value="Succeeded">Thành công</option>
+                        <option value="Failed">Thất bại</option>
+                        <option value="Accepted">Đã tiếp nhận</option>
+                        <option value="LockedOut">Đã khóa</option>
+                    </select>
+                </label>
+                <label class="form-control">
+                    <span class="label"><span class="label-text font-medium">Số dòng</span></span>
+                    <select class="select select-bordered w-full" aria-label="Số bản ghi mỗi trang" data-audit-page-size>
+                        <option value="10">10</option>
+                        <option value="25" selected>25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="alert alert-error hidden" role="alert" data-audit-error></div>
+            <div class="overflow-x-auto rounded-box border border-base-300">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Thời điểm (UTC)</th>
+                            <th>Sự kiện</th>
+                            <th>Kết quả</th>
+                            <th>Actor user ID</th>
+                            <th>Target user ID</th>
+                            <th>Target role ID</th>
+                        </tr>
+                    </thead>
+                    <tbody data-audit-rows>
+                        <tr><td colspan="6" class="py-10 text-center text-base-content/60">Đang tải nhật ký...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-base-content/70" aria-live="polite" data-audit-count></p>
+                <div class="join self-end" aria-label="Phân trang nhật ký">
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang trước" data-audit-previous>«</button>
+                    <button type="button" class="btn btn-sm join-item no-animation" aria-live="polite" data-audit-page-label>Trang 1 / 1</button>
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang sau" data-audit-next>»</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/admin-audit.js" asp-append-version="true"></script>
+}
