@@ -54,7 +54,7 @@ additive and retains additional role permission claims. Use the claim type
 `Permission` with values such as `Permissions.Reports.Export` to grant
 additional permissions.
 
-Run the focused permission tests with:
+Run the infrastructure and user-management integration tests with:
 
 ```bash
 dotnet test tests/BaseMVC.Infrastructure.Tests/BaseMVC.Infrastructure.Tests.csproj
