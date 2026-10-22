@@ -1,10 +1,20 @@
 using BaseMVC.Infrastructure;
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.WebUI.HealthChecks;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services
+    .AddHealthChecks()
+    .AddCheck(
+        "self",
+        () => HealthCheckResult.Healthy(),
+        tags: ["live"])
+    .AddCheck<SqliteReadinessHealthCheck>("sqlite", tags: ["ready"]);
 
 var app = builder.Build();
 
@@ -25,6 +35,17 @@ app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live"),
+    ResponseWriter = WriteHealthStatusAsync
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = WriteHealthStatusAsync
+});
+
 app.MapStaticAssets();
 
 app.MapControllerRoute(
@@ -34,6 +55,12 @@ app.MapControllerRoute(
 
 
 app.Run();
+
+static Task WriteHealthStatusAsync(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "text/plain";
+    return context.Response.WriteAsync(report.Status.ToString());
+}
 
 public partial class Program
 {

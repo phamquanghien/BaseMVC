@@ -26,6 +26,14 @@ it is assigned the `SuperAdmin` role without changing its password.
 The connection string can be overridden with
 `ConnectionStrings__DefaultConnection`.
 
+## Health checks
+
+`/health/live` is an anonymous liveness endpoint that reports whether the
+application process is running. `/health/ready` is an anonymous readiness
+endpoint that also checks connectivity to the configured SQLite database.
+Both endpoints return a plain-text health status without exposing dependency
+details.
+
 ## Authentication
 
 Sign in at `/Account/Login` with an Identity account. The application does not

@@ -329,6 +329,47 @@ public sealed class UserManagementEndpointTests
             HttpStatusCode.Redirect);
     }
 
+    [Fact]
+    public async Task Health_endpoints_are_anonymous_and_report_liveness_and_database_readiness()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var livenessResponse = await client.GetAsync("/health/live");
+        Assert.Equal(HttpStatusCode.OK, livenessResponse.StatusCode);
+        Assert.Equal("Healthy", await livenessResponse.Content.ReadAsStringAsync());
+
+        using var readinessResponse = await client.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.OK, readinessResponse.StatusCode);
+        Assert.Equal("Healthy", await readinessResponse.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task Readiness_fails_when_sqlite_is_unavailable_while_liveness_remains_healthy()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var initialReadinessResponse = await client.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.OK, initialReadinessResponse.StatusCode);
+
+        factory.PointToUnavailableDatabase();
+
+        using var livenessResponse = await client.GetAsync("/health/live");
+        Assert.Equal(HttpStatusCode.OK, livenessResponse.StatusCode);
+        Assert.Equal("Healthy", await livenessResponse.Content.ReadAsStringAsync());
+
+        using var readinessResponse = await client.GetAsync("/health/ready");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, readinessResponse.StatusCode);
+        Assert.Equal("Unhealthy", await readinessResponse.Content.ReadAsStringAsync());
+    }
+
     private static async Task SignInAsync(HttpClient client, string email, string password)
     {
         using var loginPageResponse = await client.GetAsync("/Account/Login");
@@ -456,6 +497,13 @@ public sealed class UserManagementEndpointTests
                 user,
                 new Claim(PermissionClaim.Type, "Permissions.Access.Manage"));
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
+        }
+
+        public void PointToUnavailableDatabase()
+        {
+            _connection.Close();
+            _connection.ConnectionString =
+                "Data Source=/basemvc-health-check-unavailable/health.db;Mode=ReadOnly";
         }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
