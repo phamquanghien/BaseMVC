@@ -1,6 +1,7 @@
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.Infrastructure.Authorization;
+using BaseMVC.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,7 @@ public static class DependencyInjection
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddScoped<IdentitySeeder>();
+        services.AddScoped<IAuditLogWriter, AuditLogWriter>();
 
         return services;
     }

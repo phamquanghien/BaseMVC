@@ -1,4 +1,5 @@
 using BaseMVC.Infrastructure.Authorization;
+using BaseMVC.Infrastructure.Auditing;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Models.Users;
@@ -15,6 +16,7 @@ public sealed class UsersController(
     UserManager<ApplicationUser> userManager,
     RoleManager<IdentityRole> roleManager,
     ApplicationDbContext dbContext,
+    IAuditLogWriter auditLogWriter,
     IAuthorizationService authorizationService,
     ILogger<UsersController> logger) : Controller
 {
@@ -155,6 +157,12 @@ public sealed class UsersController(
             return BadRequest(new { errors = assigned.Errors.Select(error => error.Description) });
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.UserCreated,
+            AuditOutcome.Succeeded,
+            actorUserId: userManager.GetUserId(User),
+            targetUserId: user.Id,
+            cancellationToken: cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return CreatedAtAction(nameof(Search), new { search = email }, await ToListItemAsync(user));
     }
@@ -269,6 +277,12 @@ public sealed class UsersController(
             }
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.UserUpdated,
+            AuditOutcome.Succeeded,
+            actorUserId: userManager.GetUserId(User),
+            targetUserId: user.Id,
+            cancellationToken: cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Ok(await ToListItemAsync(user));
     }
@@ -276,7 +290,7 @@ public sealed class UsersController(
     [Authorize(Policy = "Permissions.Users.Delete")]
     [HttpPost("{id}/delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
     {
         if (string.Equals(id, userManager.GetUserId(User), StringComparison.Ordinal))
         {
@@ -295,9 +309,11 @@ public sealed class UsersController(
             return Conflict(new { errors = new[] { "Không thể xóa SuperAdmin cuối cùng." } });
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var result = await userManager.DeleteAsync(user);
         if (!result.Succeeded)
         {
+            await transaction.RollbackAsync(cancellationToken);
             logger.LogWarning(
                 "Could not delete user {UserId}: {Errors}",
                 id,
@@ -305,6 +321,13 @@ public sealed class UsersController(
             return BadRequest(new { errors = result.Errors.Select(error => error.Description) });
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.UserDeleted,
+            AuditOutcome.Succeeded,
+            actorUserId: userManager.GetUserId(User),
+            targetUserId: user.Id,
+            cancellationToken: cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return NoContent();
     }
 

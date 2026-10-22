@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
+using BaseMVC.Infrastructure.Auditing;
 using BaseMVC.WebUI.Email;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
@@ -128,6 +129,76 @@ public sealed class UserManagementEndpointTests
             $"/Admin/Users/{superAdmin.Id}/delete",
             token);
         Assert.Equal(HttpStatusCode.Conflict, selfDeleteResponse.StatusCode);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.UserCreated)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded)
+            && entry.TargetUserId == created.Id);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.UserUpdated)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded)
+            && entry.TargetUserId == created.Id);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.UserDeleted)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded)
+            && entry.TargetUserId == created.Id);
+    }
+
+    [Fact]
+    public async Task Role_and_permission_mutations_are_audited_with_stable_role_id()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var token = await GetAntiforgeryTokenAsync(client);
+
+        using var createResponse = await PostWithTokenAsync(
+            client,
+            "/Admin/Roles",
+            token,
+            new { name = "AuditTestRole" });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var createdRole = await createResponse.Content.ReadFromJsonAsync<RoleMutationResponse>();
+        Assert.NotNull(createdRole);
+
+        using var editResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Roles/{createdRole.Id}/edit",
+            token,
+            new { name = "AuditUpdatedRole" });
+        Assert.Equal(HttpStatusCode.OK, editResponse.StatusCode);
+
+        using var permissionsResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Permissions/roles/{createdRole.Id}",
+            token,
+            new { permissions = new[] { "Permissions.Users.Read" } });
+        Assert.Equal(HttpStatusCode.OK, permissionsResponse.StatusCode);
+
+        using var deleteResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Roles/{createdRole.Id}/delete",
+            token);
+        Assert.Equal(HttpStatusCode.NoContent, deleteResponse.StatusCode);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        foreach (var eventType in new[]
+        {
+            AuditEventType.RoleCreated,
+            AuditEventType.RoleUpdated,
+            AuditEventType.RolePermissionsUpdated,
+            AuditEventType.RoleDeleted
+        })
+        {
+            Assert.Contains(auditEntries, entry =>
+                entry.EventType == eventType.ToString()
+                && entry.Outcome == nameof(AuditOutcome.Succeeded)
+                && entry.TargetRoleId == createdRole.Id);
+        }
     }
 
     [Fact]
@@ -329,6 +400,29 @@ public sealed class UserManagementEndpointTests
             factory.SuperAdminEmail,
             "UpdatedPassword123!",
             HttpStatusCode.Redirect);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordChange)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordChange)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Login)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Login)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Logout)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded));
+        AssertAuditEntriesContainNoSensitiveValues(
+            auditEntries,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword,
+            "IncorrectPassword123!",
+            "UpdatedPassword123!");
     }
 
     [Fact]
@@ -431,6 +525,29 @@ public sealed class UserManagementEndpointTests
             factory.SuperAdminEmail,
             "RecoveredPassword123!",
             HttpStatusCode.Redirect);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Equal(
+            3,
+            auditEntries.Count(entry =>
+                entry.EventType == nameof(AuditEventType.PasswordResetRequested)
+                && entry.Outcome == nameof(AuditOutcome.Accepted)));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetRequested)
+            && entry.Outcome == nameof(AuditOutcome.Accepted)
+            && entry.TargetUserId is null);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetEmailDelivery)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetCompleted)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded));
+        AssertAuditEntriesContainNoSensitiveValues(
+            auditEntries,
+            factory.SuperAdminEmail,
+            code,
+            resetUrl,
+            "RecoveredPassword123!");
     }
 
     [Fact]
@@ -492,6 +609,17 @@ public sealed class UserManagementEndpointTests
             factory.SuperAdminEmail,
             factory.SuperAdminPassword,
             HttpStatusCode.Redirect);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetCompleted)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
+        AssertAuditEntriesContainNoSensitiveValues(
+            auditEntries,
+            factory.SuperAdminEmail,
+            resetCode,
+            invalidCode,
+            "InvalidAttempt123!");
     }
 
     [Fact]
@@ -656,6 +784,40 @@ public sealed class UserManagementEndpointTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
+    private static async Task<List<AuditLogEntry>> GetAuditEntriesAsync(
+        UserManagementWebApplicationFactory factory)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await dbContext.AuditLogEntries
+            .AsNoTracking()
+            .OrderBy(entry => entry.Id)
+            .ToListAsync();
+    }
+
+    private static void AssertAuditEntriesContainNoSensitiveValues(
+        IEnumerable<AuditLogEntry> auditEntries,
+        params string?[] sensitiveValues)
+    {
+        var storedValues = auditEntries
+            .SelectMany(entry => new[]
+            {
+                entry.EventType,
+                entry.Outcome,
+                entry.ActorUserId,
+                entry.TargetUserId,
+                entry.TargetRoleId
+            })
+            .Where(value => value is not null)
+            .ToArray();
+
+        foreach (var sensitiveValue in sensitiveValues.Where(value => !string.IsNullOrWhiteSpace(value)))
+        {
+            Assert.DoesNotContain(storedValues, value =>
+                value!.Contains(sensitiveValue!, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
     private static async Task<string> GetAntiforgeryTokenAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/Admin/Users");
@@ -690,6 +852,8 @@ public sealed class UserManagementEndpointTests
     }
 
     private sealed record RoleDto(string Id, string Name, bool IsAssignable);
+
+    private sealed record RoleMutationResponse(string Id, string Name, int UserCount);
 
     private sealed record UserDto(
         string Id,

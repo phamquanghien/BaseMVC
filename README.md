@@ -130,3 +130,15 @@ updates use JSON POST requests protected by an Anti-Forgery token.
 SuperAdmin retains both `Permissions.Access.Read` and
 `Permissions.Access.Manage` so its permission manager cannot lock itself out.
 Grant and revoke operations update role claims in SQLite immediately.
+
+## Audit log
+
+Authentication outcomes, password reset/change events, and successful
+administrative user, role, and permission mutations are recorded in the
+append-only `AuditLogEntries` table. Records contain a UTC timestamp, fixed
+event/outcome names, and optional internal actor/target IDs. They do not store
+email addresses, IP addresses, passwords, reset tokens, URLs, or request
+payloads. Audit rows deliberately have no foreign keys to Identity records so
+they remain available after a user or role is deleted. Define and enforce an
+operational retention policy appropriate to the deployment's privacy and
+compliance requirements.

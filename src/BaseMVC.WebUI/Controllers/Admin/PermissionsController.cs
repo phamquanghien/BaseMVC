@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BaseMVC.Infrastructure.Auditing;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
@@ -15,6 +16,7 @@ namespace BaseMVC.WebUI.Controllers.Admin;
 public sealed class PermissionsController(
     RoleManager<IdentityRole> roleManager,
     ApplicationDbContext dbContext,
+    IAuditLogWriter auditLogWriter,
     ILogger<PermissionsController> logger) : Controller
 {
     [Authorize(Policy = "Permissions.Access.Read")]
@@ -154,6 +156,12 @@ public sealed class PermissionsController(
             }
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.RolePermissionsUpdated,
+            AuditOutcome.Succeeded,
+            actorUserId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+            targetRoleId: role.Id,
+            cancellationToken: cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         logger.LogInformation(
             "Updated catalog permissions for role {RoleName}; {PermissionCount} permissions granted.",

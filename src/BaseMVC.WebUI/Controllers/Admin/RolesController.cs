@@ -1,4 +1,5 @@
 using BaseMVC.Infrastructure.Authorization;
+using BaseMVC.Infrastructure.Auditing;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Models.Roles;
@@ -6,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace BaseMVC.WebUI.Controllers.Admin;
 
@@ -14,6 +16,7 @@ namespace BaseMVC.WebUI.Controllers.Admin;
 public sealed class RolesController(
     RoleManager<IdentityRole> roleManager,
     ApplicationDbContext dbContext,
+    IAuditLogWriter auditLogWriter,
     ILogger<RolesController> logger) : Controller
 {
     [Authorize(Policy = "Permissions.Roles.Read")]
@@ -91,6 +94,7 @@ public sealed class RolesController(
         }
 
         var role = new IdentityRole(name);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var result = await roleManager.CreateAsync(role);
 
         if (!result.Succeeded)
@@ -102,6 +106,13 @@ public sealed class RolesController(
             return BadRequest(new { errors = result.Errors.Select(error => error.Description) });
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.RoleCreated,
+            AuditOutcome.Succeeded,
+            actorUserId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+            targetRoleId: role.Id,
+            cancellationToken: cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return CreatedAtAction(nameof(Search), new { search = name }, new RoleListItemViewModel(role.Id, name, 0));
     }
 
@@ -110,7 +121,8 @@ public sealed class RolesController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Edit(
         string id,
-        [FromBody] RoleMutationRequest request)
+        [FromBody] RoleMutationRequest request,
+        CancellationToken cancellationToken)
     {
         var role = await roleManager.FindByIdAsync(id);
 
@@ -138,6 +150,7 @@ public sealed class RolesController(
         }
 
         role.Name = name;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var result = await roleManager.UpdateAsync(role);
 
         if (!result.Succeeded)
@@ -149,17 +162,24 @@ public sealed class RolesController(
             return BadRequest(new { errors = result.Errors.Select(error => error.Description) });
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.RoleUpdated,
+            AuditOutcome.Succeeded,
+            actorUserId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+            targetRoleId: role.Id,
+            cancellationToken: cancellationToken);
         var userCount = await dbContext.UserRoles
             .AsNoTracking()
-            .CountAsync(userRole => userRole.RoleId == id);
+            .CountAsync(userRole => userRole.RoleId == id, cancellationToken);
 
+        await transaction.CommitAsync(cancellationToken);
         return Ok(new RoleListItemViewModel(role.Id, role.Name, userCount));
     }
 
     [Authorize(Policy = "Permissions.Roles.Delete")]
     [HttpPost("{id}/delete")]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
     {
         var role = await roleManager.FindByIdAsync(id);
 
@@ -185,10 +205,11 @@ public sealed class RolesController(
             });
         }
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var result = await roleManager.DeleteAsync(role);
-
         if (!result.Succeeded)
         {
+            await transaction.RollbackAsync(cancellationToken);
             logger.LogWarning(
                 "Could not delete role {RoleId}: {Errors}",
                 id,
@@ -196,6 +217,13 @@ public sealed class RolesController(
             return BadRequest(new { errors = result.Errors.Select(error => error.Description) });
         }
 
+        await auditLogWriter.WriteAsync(
+            AuditEventType.RoleDeleted,
+            AuditOutcome.Succeeded,
+            actorUserId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+            targetRoleId: role.Id,
+            cancellationToken: cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return NoContent();
     }
 }
