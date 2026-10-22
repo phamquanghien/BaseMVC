@@ -41,6 +41,8 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
 
+        services.AddScoped<IdentitySeeder>();
+
         return services;
     }
 }
