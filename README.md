@@ -152,3 +152,27 @@ the dynamic permission manager.
 Audit records are retained for 90 days. A background service deletes records
 older than 90 days at application startup and then every 24 hours. If cleanup
 fails, the failure is logged and the next scheduled run retries it.
+
+## SQLite backups and restore
+
+Automated SQLite backups are enabled by default. The application creates an
+online, consistent database backup at startup and every 24 hours, verifies
+each backup with SQLite `integrity_check`, and removes backups older than
+seven days. Configure the service with `SqliteBackup__Enabled`,
+`SqliteBackup__Directory`, `SqliteBackup__IntervalHours`, and
+`SqliteBackup__RetentionDays`. The directory must be dedicated to BaseMVC
+backup files; on Unix-like systems, backup directories and files are restricted
+to the application owner. In production, point the directory to a durable,
+access-controlled, encrypted volume outside the web root. The default local
+directory is `src/BaseMVC.WebUI/App_Data/Backups` and is excluded from Git.
+
+To restore, stop every application instance using the database, preserve the
+current database file for investigation, then place a verified
+`basemvc-*.db` backup at the configured `ConnectionStrings__DefaultConnection`
+data source path and ensure the application owner can read and write it.
+Restart the application and verify `/health/ready` and representative
+application data before reopening traffic. Periodically rehearse this process
+using an isolated copy; backups stored on the same host are not protection
+against host or volume loss. When multiple application instances run, use a
+single designated backup worker or external coordination and shared storage
+to avoid redundant backup sets.

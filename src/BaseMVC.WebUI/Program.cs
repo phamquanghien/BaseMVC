@@ -1,5 +1,6 @@
 using BaseMVC.Infrastructure;
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.WebUI.SqliteBackups;
 using BaseMVC.WebUI.Auditing;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.HealthChecks;
@@ -21,6 +22,12 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddHostedService<AuditLogRetentionService>();
+builder.Services
+    .AddOptions<SqliteBackupOptions>()
+    .Bind(builder.Configuration.GetSection("SqliteBackup"))
+    .Validate(options => IsValidBackupOptions(options), "SQLite backup configuration is invalid.")
+    .ValidateOnStart();
+builder.Services.AddHostedService<SqliteDatabaseBackupService>();
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -127,6 +134,19 @@ app.Run();
 
 static string GetRateLimitPartitionKey(HttpContext context) =>
     context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+static bool IsValidBackupOptions(SqliteBackupOptions options)
+{
+    try
+    {
+        options.Validate();
+        return true;
+    }
+    catch (InvalidOperationException)
+    {
+        return false;
+    }
+}
 
 static Task WriteHealthStatusAsync(HttpContext context, HealthReport report)
 {

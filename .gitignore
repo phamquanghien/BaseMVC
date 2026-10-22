@@ -69,6 +69,7 @@ artifacts/
 *.db
 *.db-shm
 *.db-wal
+/src/BaseMVC.WebUI/App_Data/Backups/
 
 # Node.js
 node_modules/

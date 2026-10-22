@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.RegularExpressions;
 using BaseMVC.Infrastructure.Auditing;
+using BaseMVC.WebUI.SqliteBackups;
 using BaseMVC.WebUI.Email;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
@@ -18,7 +19,10 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.WebUtilities;
 
 namespace BaseMVC.Infrastructure.Tests.WebUI;
@@ -861,6 +865,89 @@ public sealed class UserManagementEndpointTests
         Assert.True(await verificationContext.AuditLogEntries.AnyAsync(entry => entry.Id == recentId));
     }
 
+    [Fact]
+    public async Task Sqlite_backup_is_integrity_checked_restorable_and_prunes_expired_backups()
+    {
+        var testDirectory = Directory.CreateTempSubdirectory("basemvc-backup-test-");
+        try
+        {
+            var sourcePath = Path.Combine(testDirectory.FullName, "source.db");
+            var backupDirectory = Path.Combine(testDirectory.FullName, "backups");
+            var restoredPath = Path.Combine(testDirectory.FullName, "restored.db");
+            var connectionString = new SqliteConnectionStringBuilder
+            {
+                DataSource = sourcePath,
+                Pooling = false
+            }.ToString();
+            await using (var sourceConnection = new SqliteConnection(connectionString))
+            {
+                await sourceConnection.OpenAsync();
+                await using var createProbe = sourceConnection.CreateCommand();
+                createProbe.CommandText =
+                    "CREATE TABLE BackupProbe (Value TEXT NOT NULL); INSERT INTO BackupProbe (Value) VALUES ('restore-verified');";
+                await createProbe.ExecuteNonQueryAsync();
+            }
+
+            var expiredBackupPath = Path.Combine(backupDirectory, "basemvc-expired.db");
+            Directory.CreateDirectory(backupDirectory);
+            await File.WriteAllTextAsync(expiredBackupPath, "expired");
+            File.SetLastWriteTimeUtc(expiredBackupPath, DateTime.UtcNow.AddDays(-8));
+            var unrelatedFilePath = Path.Combine(backupDirectory, "unrelated.db");
+            await File.WriteAllTextAsync(unrelatedFilePath, "keep");
+
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+            await using var provider = services.BuildServiceProvider();
+            var hostEnvironment = new BackupTestHostEnvironment(testDirectory.FullName);
+            var backupService = new SqliteDatabaseBackupService(
+                provider.GetRequiredService<IServiceScopeFactory>(),
+                Options.Create(new SqliteBackupOptions
+                {
+                    Directory = backupDirectory,
+                    RetentionDays = 7
+                }),
+                hostEnvironment,
+                NullLogger<SqliteDatabaseBackupService>.Instance);
+
+            var backupPath = await backupService.CreateBackupAsync(DateTimeOffset.UtcNow);
+            Assert.True(File.Exists(backupPath));
+            Assert.False(File.Exists(expiredBackupPath));
+            Assert.True(File.Exists(unrelatedFilePath));
+
+            await using var backupConnection = new SqliteConnection(
+                new SqliteConnectionStringBuilder
+                {
+                    DataSource = backupPath,
+                    Pooling = false
+                }.ToString());
+            await backupConnection.OpenAsync();
+            await using var restoredConnection = new SqliteConnection(
+                new SqliteConnectionStringBuilder
+                {
+                    DataSource = restoredPath,
+                    Pooling = false
+                }.ToString());
+            await restoredConnection.OpenAsync();
+            backupConnection.BackupDatabase(restoredConnection);
+
+            await using var verifyRestore = restoredConnection.CreateCommand();
+            verifyRestore.CommandText = "SELECT Value FROM BackupProbe;";
+            Assert.Equal("restore-verified", await verifyRestore.ExecuteScalarAsync());
+
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Equal(
+                    UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                    File.GetUnixFileMode(backupPath));
+            }
+        }
+        finally
+        {
+            testDirectory.Delete(recursive: true);
+        }
+    }
+
     private static async Task SignInAsync(HttpClient client, string email, string password)
     {
         using var loginPageResponse = await client.GetAsync("/Account/Login");
@@ -1001,6 +1088,17 @@ public sealed class UserManagementEndpointTests
         string? TargetUserId,
         string? TargetRoleId);
 
+    private sealed class BackupTestHostEnvironment(string contentRootPath) : IHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "BaseMVC.Tests";
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+
+        public string ContentRootPath { get; set; } = contentRootPath;
+
+        public string EnvironmentName { get; set; } = Environments.Development;
+    }
+
     private sealed record UserDto(
         string Id,
         string Email,
@@ -1079,6 +1177,7 @@ public sealed class UserManagementEndpointTests
                     ["Email:SmtpPort"] = "587",
                     ["Email:FromAddress"] = "no-reply@basemvc.example.test",
                     ["Email:PublicBaseUrl"] = "https://basemvc.example.test",
+                    ["SqliteBackup:Enabled"] = "false",
                     ["SeedAdmin:Email"] = SuperAdminEmail,
                     ["SeedAdmin:Password"] = SuperAdminPassword
                 });
