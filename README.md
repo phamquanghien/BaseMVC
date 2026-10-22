@@ -59,3 +59,11 @@ Run the focused permission tests with:
 ```bash
 dotnet test tests/BaseMVC.Infrastructure.Tests/BaseMVC.Infrastructure.Tests.csproj
 ```
+
+## Role management
+
+Users with `Permissions.Roles.Read` can open `/Admin/Roles`. Search, paging,
+create, edit, and delete use JSON endpoints and update the table without a page
+reload. Write requests require the ASP.NET Core Anti-Forgery token. The
+`Administrator` and `SuperAdmin` system roles cannot be renamed or deleted,
+and a role assigned to users cannot be deleted.

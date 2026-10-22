@@ -1,4 +1,9 @@
 ﻿<!DOCTYPE html>
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    var canReadRoles = User.Identity?.IsAuthenticated == true
+        && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Roles.Read")).Succeeded;
+}
 <html lang="vi" data-theme="light">
 <head>
     <meta charset="utf-8" />
@@ -21,6 +26,10 @@
                     <ul class="menu menu-horizontal gap-1 px-1">
                         <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
                         <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
+                        @if (canReadRoles)
+                        {
+                            <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
+                        }
                     </ul>
                 </div>
                 <div class="navbar-end gap-2">
@@ -46,6 +55,10 @@
                         <ul class="menu dropdown-content z-30 mt-3 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
                             <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
                             <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
+                            @if (canReadRoles)
+                            {
+                                <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
+                            }
                             @if (User.Identity?.IsAuthenticated == true)
                             {
                                 <li>

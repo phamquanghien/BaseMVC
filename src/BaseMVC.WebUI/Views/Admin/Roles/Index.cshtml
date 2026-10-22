@@ -1,0 +1,105 @@
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "Quản lý vai trò";
+    var canCreateRole = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Roles.Create")).Succeeded;
+    var canUpdateRole = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Roles.Update")).Succeeded;
+    var canDeleteRole = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Roles.Delete")).Succeeded;
+}
+
+<section class="space-y-6" data-role-manager
+         data-search-url="@Url.Action("Search", "Roles", new { area = "" })"
+         data-create-url="@Url.Action("Create", "Roles", new { area = "" })"
+         data-edit-url-template="@Url.Action("Edit", "Roles", new { area = "", id = "__roleId__" })"
+         data-delete-url-template="@Url.Action("Delete", "Roles", new { area = "", id = "__roleId__" })"
+         data-can-create="@canCreateRole.ToString().ToLowerInvariant()"
+         data-can-update="@canUpdateRole.ToString().ToLowerInvariant()"
+         data-can-delete="@canDeleteRole.ToString().ToLowerInvariant()">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <div class="badge badge-primary badge-outline">Identity</div>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight">Quản lý vai trò</h1>
+            <p class="mt-2 text-base-content/70">Tìm kiếm, phân trang và quản lý role của hệ thống.</p>
+        </div>
+        @if (canCreateRole)
+        {
+            <button type="button" class="btn btn-primary" data-role-create>
+                <span aria-hidden="true">＋</span> Thêm role
+            </button>
+        }
+    </div>
+
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-5 p-4 sm:p-6">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label class="input input-bordered flex w-full items-center gap-2 sm:max-w-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7" stroke-width="2" />
+                        <path stroke-linecap="round" stroke-width="2" d="m20 20-4-4" />
+                    </svg>
+                    <input type="search" class="grow" placeholder="Tìm theo tên role..." aria-label="Tìm theo tên role" data-role-search />
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                    <span>Số dòng</span>
+                    <select class="select select-bordered select-sm" aria-label="Số role mỗi trang" data-role-page-size>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="alert alert-error hidden" role="alert" data-role-error></div>
+            <div class="overflow-x-auto rounded-box border border-base-300">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tên role</th>
+                            <th>Số tài khoản</th>
+                            <th class="text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody data-role-rows>
+                        <tr><td colspan="3" class="py-10 text-center text-base-content/60">Đang tải danh sách role...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-base-content/70" aria-live="polite" data-role-count></p>
+                <div class="join self-end" aria-label="Phân trang role">
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang trước" data-role-previous>«</button>
+                    <button type="button" class="btn btn-sm join-item no-animation" aria-live="polite" data-role-page-label>Trang 1 / 1</button>
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang sau" data-role-next>»</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="role-antiforgery" asp-controller="Account" asp-action="Login" method="post" asp-antiforgery="false" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <dialog class="modal" data-role-modal>
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold" data-role-modal-title>Thêm role</h2>
+            <p class="mt-2 text-sm text-base-content/70" data-role-modal-description>Nhập tên role mới.</p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-role-modal-error></div>
+            <div class="mt-5" data-role-name-container>
+                <label for="role-name" class="label"><span class="label-text font-medium">Tên role</span></label>
+                <input id="role-name" name="Name" type="text" class="input input-bordered w-full" maxlength="128" autocomplete="off" />
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-role-cancel>Hủy</button>
+                <button type="button" class="btn btn-primary" data-role-submit>Lưu</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+</section>
+
+@section Scripts {
+    <script src="~/js/admin-roles.js" asp-append-version="true"></script>
+}
