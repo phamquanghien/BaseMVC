@@ -26,6 +26,14 @@ it is assigned the `SuperAdmin` role without changing its password.
 The connection string can be overridden with
 `ConnectionStrings__DefaultConnection`.
 
+## Authentication
+
+Sign in at `/Account/Login` with an Identity account. The application does not
+expose public self-registration. Sign-out is a protected POST request, and
+login and logout forms include ASP.NET Core Anti-Forgery tokens. Cookie
+challenges use `/Account/Login`; denied authorization uses
+`/Account/AccessDenied`.
+
 ## Dynamic permissions
 
 Protect an MVC action with a policy such as

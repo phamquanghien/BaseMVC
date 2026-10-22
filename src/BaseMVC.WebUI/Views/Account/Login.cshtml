@@ -1,0 +1,50 @@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Đăng nhập";
+}
+
+<section class="card mx-auto w-full max-w-md border border-base-300 bg-base-100 shadow-sm">
+    <div class="card-body gap-5 p-6 sm:p-8">
+        <div>
+            <div class="badge badge-primary badge-outline">BaseMVC Identity</div>
+            <h1 class="mt-4 text-3xl font-bold tracking-tight">Đăng nhập</h1>
+            <p class="mt-2 text-base-content/70">Đăng nhập bằng tài khoản đã được cấp.</p>
+        </div>
+
+        <form asp-controller="Account" asp-action="Login" method="post" asp-antiforgery="false" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input asp-for="ReturnUrl" type="hidden" />
+            @if (ViewData.ModelState[string.Empty]?.Errors.Count > 0)
+            {
+                <div asp-validation-summary="ModelOnly" class="alert alert-error text-sm" role="alert"></div>
+            }
+
+            <div class="form-control">
+                <label asp-for="Email" class="label">
+                    <span class="label-text font-medium">@Html.DisplayNameFor(model => model.Email)</span>
+                </label>
+                <input asp-for="Email" class="input input-bordered w-full" autocomplete="username" autofocus />
+                <span asp-validation-for="Email" class="mt-1 text-sm text-error"></span>
+            </div>
+
+            <div class="form-control">
+                <label asp-for="Password" class="label">
+                    <span class="label-text font-medium">@Html.DisplayNameFor(model => model.Password)</span>
+                </label>
+                <input asp-for="Password" class="input input-bordered w-full" autocomplete="current-password" />
+                <span asp-validation-for="Password" class="mt-1 text-sm text-error"></span>
+            </div>
+
+            <label class="label cursor-pointer justify-start gap-3">
+                <input asp-for="RememberMe" class="checkbox checkbox-primary checkbox-sm" />
+                <span class="label-text">@Html.DisplayNameFor(model => model.RememberMe)</span>
+            </label>
+
+            <button type="submit" class="btn btn-primary w-full">Đăng nhập</button>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,14 @@
+@{
+    ViewData["Title"] = "Không đủ quyền truy cập";
+}
+
+<section class="alert alert-warning mx-auto max-w-2xl items-start">
+    <svg xmlns="http://www.w3.org/2000/svg" class="mt-1 size-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3Z" />
+    </svg>
+    <div>
+        <h1 class="text-xl font-bold">Bạn chưa được cấp quyền truy cập</h1>
+        <p>Hãy liên hệ quản trị viên nếu bạn cho rằng mình cần quyền này.</p>
+        <a class="btn btn-ghost btn-sm mt-3" asp-controller="Home" asp-action="Index">Quay lại trang chủ</a>
+    </div>
+</section>

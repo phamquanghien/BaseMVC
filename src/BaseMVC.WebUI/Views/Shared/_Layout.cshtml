@@ -24,7 +24,19 @@
                     </ul>
                 </div>
                 <div class="navbar-end gap-2">
-                    <a class="btn btn-primary btn-sm hidden sm:inline-flex" asp-area="" asp-controller="Home" asp-action="Index">Bắt đầu</a>
+                    @if (User.Identity?.IsAuthenticated == true)
+                    {
+                        <span class="hidden max-w-40 truncate text-sm text-base-content/70 sm:inline" title="@User.Identity.Name">@User.Identity.Name</span>
+                        <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false" class="hidden sm:block">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="returnUrl" value="/" />
+                            <button type="submit" class="btn btn-outline btn-sm">Đăng xuất</button>
+                        </form>
+                    }
+                    else
+                    {
+                        <a class="btn btn-primary btn-sm hidden sm:inline-flex" asp-controller="Account" asp-action="Login">Đăng nhập</a>
+                    }
                     <div class="dropdown dropdown-end md:hidden">
                         <button class="btn btn-ghost btn-square" type="button" aria-label="Mở menu" aria-haspopup="true">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -34,6 +46,20 @@
                         <ul class="menu dropdown-content z-30 mt-3 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
                             <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
                             <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
+                            @if (User.Identity?.IsAuthenticated == true)
+                            {
+                                <li>
+                                    <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="returnUrl" value="/" />
+                                        <button type="submit">Đăng xuất</button>
+                                    </form>
+                                </li>
+                            }
+                            else
+                            {
+                                <li><a asp-controller="Account" asp-action="Login">Đăng nhập</a></li>
+                            }
                         </ul>
                     </div>
                 </div>
