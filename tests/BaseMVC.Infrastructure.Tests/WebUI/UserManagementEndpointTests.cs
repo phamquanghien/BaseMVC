@@ -875,6 +875,7 @@ public sealed class UserManagementEndpointTests
         {
             var sourcePath = Path.Combine(testDirectory.FullName, "source.db");
             var backupDirectory = Path.Combine(testDirectory.FullName, "backups");
+            var archiveDirectory = Path.Combine(testDirectory.FullName, "archive");
             var restoredPath = Path.Combine(testDirectory.FullName, "restored.db");
             var connectionString = new SqliteConnectionStringBuilder
             {
@@ -894,6 +895,10 @@ public sealed class UserManagementEndpointTests
             Directory.CreateDirectory(backupDirectory);
             await File.WriteAllTextAsync(expiredBackupPath, "expired");
             File.SetLastWriteTimeUtc(expiredBackupPath, DateTime.UtcNow.AddDays(-8));
+            var expiredArchivePath = Path.Combine(archiveDirectory, "basemvc-expired.db");
+            Directory.CreateDirectory(archiveDirectory);
+            await File.WriteAllTextAsync(expiredArchivePath, "expired");
+            File.SetLastWriteTimeUtc(expiredArchivePath, DateTime.UtcNow.AddDays(-8));
             var unrelatedFilePath = Path.Combine(backupDirectory, "unrelated.db");
             await File.WriteAllTextAsync(unrelatedFilePath, "keep");
 
@@ -903,12 +908,16 @@ public sealed class UserManagementEndpointTests
             await using var provider = services.BuildServiceProvider();
             var hostEnvironment = new BackupTestHostEnvironment(testDirectory.FullName);
             var backupStatus = new SqliteBackupStatus();
+            var archiveStore = new FileSystemBackupArchiveStore(
+                NullLogger<FileSystemBackupArchiveStore>.Instance);
             var backupService = new SqliteDatabaseBackupService(
                 provider.GetRequiredService<IServiceScopeFactory>(),
+                archiveStore,
                 backupStatus,
                 Options.Create(new SqliteBackupOptions
                 {
                     Directory = backupDirectory,
+                    ArchiveDirectory = archiveDirectory,
                     RetentionDays = 7
                 }),
                 hostEnvironment,
@@ -916,13 +925,17 @@ public sealed class UserManagementEndpointTests
             var backupOptions = new SqliteBackupOptions
             {
                 Directory = backupDirectory,
+                ArchiveDirectory = archiveDirectory,
                 IntervalHours = 24,
                 RetentionDays = 7
             };
 
             var backupPath = await backupService.CreateBackupAsync(DateTimeOffset.UtcNow);
+            var archivedPath = Path.Combine(archiveDirectory, Path.GetFileName(backupPath));
             Assert.True(File.Exists(backupPath));
+            Assert.True(File.Exists(archivedPath));
             Assert.False(File.Exists(expiredBackupPath));
+            Assert.False(File.Exists(expiredArchivePath));
             Assert.True(File.Exists(unrelatedFilePath));
 
             var healthCheck = new SqliteBackupHealthCheck(
@@ -952,6 +965,7 @@ public sealed class UserManagementEndpointTests
             backupStatus.RecordSuccess(DateTimeOffset.UtcNow);
 
             File.SetLastWriteTimeUtc(backupPath, DateTime.UtcNow.AddHours(-49));
+            File.SetLastWriteTimeUtc(archivedPath, DateTime.UtcNow.AddHours(-49));
             var staleResult = await healthCheck.CheckHealthAsync(healthCheckContext);
             Assert.Equal(HealthStatus.Unhealthy, staleResult.Status);
 
@@ -969,7 +983,7 @@ public sealed class UserManagementEndpointTests
             await using var backupConnection = new SqliteConnection(
                 new SqliteConnectionStringBuilder
                 {
-                    DataSource = backupPath,
+                    DataSource = archivedPath,
                     Pooling = false
                 }.ToString());
             await backupConnection.OpenAsync();

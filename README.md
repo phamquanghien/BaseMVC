@@ -158,7 +158,8 @@ fails, the failure is logged and the next scheduled run retries it.
 Automated SQLite backups are enabled by default. The application creates an
 online, consistent database backup at startup and every 24 hours, verifies
 each backup with SQLite `integrity_check`, and removes backups older than
-seven days. Configure the service with `SqliteBackup__Enabled`,
+seven days from both local and configured archive storage. Configure the
+service with `SqliteBackup__Enabled`,
 `SqliteBackup__Directory`, `SqliteBackup__IntervalHours`, and
 `SqliteBackup__RetentionDays`. The directory must be dedicated to BaseMVC
 backup files; on Unix-like systems, backup directories and files are restricted
@@ -183,3 +184,14 @@ the latest backup attempt failing also marks readiness unhealthy immediately.
 Configure external monitoring to alert on non-200 readiness responses. If
 automated backups are deliberately disabled, this backup readiness check is
 not registered.
+
+External archival uses the provider-neutral `IBackupArchiveStore` contract.
+The current `FileSystemBackupArchiveStore` copies the verified backup to the
+optional `SqliteBackup__ArchiveDirectory` path, verifies the copy with SHA-256,
+and uses atomic file placement. Leave this setting unset until a durable
+external location is provisioned. It can point to an access-controlled,
+encrypted network mount; encryption at rest and its keys must be managed by
+that storage provider. Cloud-specific storage adapters are not configured.
+When an archive directory is configured, readiness also requires a writable
+archive with a backup newer than two backup intervals. Restore drills should
+use an archived copy, not only the local backup.

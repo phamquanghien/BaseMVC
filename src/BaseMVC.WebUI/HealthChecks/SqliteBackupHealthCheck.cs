@@ -28,13 +28,47 @@ public sealed class SqliteBackupHealthCheck(
         var backupDirectory = Path.GetFullPath(
             backupOptions.Directory,
             environment.ContentRootPath);
+        var maximumAge = TimeSpan.FromHours(backupOptions.IntervalHours * 2d);
+        var localResult = CheckBackupDirectory(
+            backupDirectory,
+            "SQLite backup",
+            maximumAge);
+        if (localResult is not null)
+        {
+            return localResult;
+        }
 
+        if (!string.IsNullOrWhiteSpace(backupOptions.ArchiveDirectory))
+        {
+            var archiveDirectory = Path.GetFullPath(
+                backupOptions.ArchiveDirectory,
+                environment.ContentRootPath);
+            var archiveResult = CheckBackupDirectory(
+                archiveDirectory,
+                "SQLite backup archive",
+                maximumAge);
+            if (archiveResult is not null)
+            {
+                return archiveResult;
+            }
+        }
+
+        return Task.FromResult(HealthCheckResult.Healthy(
+            "Local SQLite backup and configured archive are writable and recent."));
+    }
+
+    private Task<HealthCheckResult>? CheckBackupDirectory(
+        string backupDirectory,
+        string storageName,
+        TimeSpan maximumAge)
+    {
         if (!Directory.Exists(backupDirectory))
         {
             logger.LogError(
-                "SQLite backup directory does not exist: {BackupDirectory}.",
+                "{StorageName} directory does not exist: {BackupDirectory}.",
+                storageName,
                 backupDirectory);
-            return Unhealthy("SQLite backup directory does not exist.");
+            return Unhealthy($"{storageName} directory does not exist.");
         }
 
         FileInfo? latestBackup;
@@ -51,39 +85,40 @@ public sealed class SqliteBackupHealthCheck(
         {
             logger.LogError(
                 exception,
-                "SQLite backup storage could not be read or written: {BackupDirectory}.",
+                "{StorageName} storage could not be read or written: {BackupDirectory}.",
+                storageName,
                 backupDirectory);
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                "SQLite backup storage could not be read or written."));
+                $"{storageName} storage could not be read or written."));
         }
         catch (UnauthorizedAccessException exception)
         {
             logger.LogError(
                 exception,
-                "SQLite backup storage access was denied: {BackupDirectory}.",
+                "{StorageName} storage access was denied: {BackupDirectory}.",
+                storageName,
                 backupDirectory);
             return Task.FromResult(HealthCheckResult.Unhealthy(
-                "SQLite backup storage access was denied."));
+                $"{storageName} storage access was denied."));
         }
 
         if (latestBackup is null)
         {
-            return Unhealthy("No SQLite backup has been created yet.");
+            return Unhealthy($"No {storageName} file has been created yet.");
         }
 
-        var maximumAge = TimeSpan.FromHours(backupOptions.IntervalHours * 2d);
         var backupAge = DateTimeOffset.UtcNow - latestBackup.LastWriteTimeUtc;
         if (backupAge > maximumAge)
         {
             logger.LogError(
-                "The latest SQLite backup is stale. Its age is {BackupAge}; maximum allowed age is {MaximumAge}.",
+                "The latest {StorageName} file is stale. Its age is {BackupAge}; maximum allowed age is {MaximumAge}.",
+                storageName,
                 backupAge,
                 maximumAge);
-            return Unhealthy("The latest SQLite backup is older than two backup intervals.");
+            return Unhealthy($"The latest {storageName} file is older than two backup intervals.");
         }
 
-        return Task.FromResult(HealthCheckResult.Healthy(
-            "The SQLite backup directory is writable and a recent backup is available."));
+        return null;
     }
 
     private static void VerifyDirectoryWritable(string backupDirectory)

@@ -28,6 +28,7 @@ builder.Services
     .Validate(options => IsValidBackupOptions(options), "SQLite backup configuration is invalid.")
     .ValidateOnStart();
 builder.Services.AddSingleton<SqliteBackupStatus>();
+builder.Services.AddSingleton<IBackupArchiveStore, FileSystemBackupArchiveStore>();
 builder.Services.AddHostedService<SqliteDatabaseBackupService>();
 builder.Services.AddRateLimiter(options =>
 {

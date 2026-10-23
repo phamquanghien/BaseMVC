@@ -8,6 +8,7 @@ namespace BaseMVC.WebUI.SqliteBackups;
 
 public sealed class SqliteDatabaseBackupService(
     IServiceScopeFactory scopeFactory,
+    IBackupArchiveStore archiveStore,
     SqliteBackupStatus backupStatus,
     IOptions<SqliteBackupOptions> options,
     IHostEnvironment environment,
@@ -49,6 +50,19 @@ public sealed class SqliteDatabaseBackupService(
         var backupPath = Path.Combine(
             backupDirectory,
             $"{BackupFilePrefix}{timestamp}-{Guid.NewGuid():N}.db");
+        var archiveDirectory = string.IsNullOrWhiteSpace(_options.ArchiveDirectory)
+            ? null
+            : Path.GetFullPath(_options.ArchiveDirectory, environment.ContentRootPath);
+        if (archiveDirectory is not null
+            && string.Equals(
+                Path.TrimEndingDirectorySeparator(backupDirectory),
+                Path.TrimEndingDirectorySeparator(archiveDirectory),
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "SQLite archive directory must be different from the local backup directory.");
+        }
+
         var backupVerified = false;
 
         try
@@ -58,19 +72,35 @@ public sealed class SqliteDatabaseBackupService(
                 await sourceConnection.OpenAsync(cancellationToken);
             }
 
-            await using var destinationConnection = new SqliteConnection(
+            await using (var destinationConnection = new SqliteConnection(
                 new SqliteConnectionStringBuilder
                 {
                     DataSource = backupPath,
                     Mode = SqliteOpenMode.ReadWriteCreate,
                     Pooling = false
-                }.ToString());
-            await destinationConnection.OpenAsync(cancellationToken);
-            SetPrivateFilePermissions(backupPath);
+                }.ToString()))
+            {
+                await destinationConnection.OpenAsync(cancellationToken);
+                SetPrivateFilePermissions(backupPath);
 
-            sourceConnection.BackupDatabase(destinationConnection);
-            await VerifyIntegrityAsync(destinationConnection, cancellationToken);
+                sourceConnection.BackupDatabase(destinationConnection);
+                await VerifyIntegrityAsync(destinationConnection, cancellationToken);
+            }
+
             backupVerified = true;
+            if (archiveDirectory is not null)
+            {
+                var archivedPath = await archiveStore.ArchiveVerifiedBackupAsync(
+                    backupPath,
+                    archiveDirectory,
+                    utcNow,
+                    _options.RetentionDays,
+                    cancellationToken);
+                logger.LogInformation(
+                    "Archived verified SQLite backup at {ArchivePath}.",
+                    archivedPath);
+            }
+
             await PruneExpiredBackupsAsync(backupDirectory, utcNow, cancellationToken);
 
             backupStatus.RecordSuccess(utcNow);

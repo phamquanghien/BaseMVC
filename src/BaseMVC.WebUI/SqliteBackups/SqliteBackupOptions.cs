@@ -6,6 +6,8 @@ public sealed class SqliteBackupOptions
 
     public string Directory { get; set; } = "App_Data/Backups";
 
+    public string? ArchiveDirectory { get; set; }
+
     public int IntervalHours { get; set; } = 24;
 
     public int RetentionDays { get; set; } = 7;
@@ -15,6 +17,12 @@ public sealed class SqliteBackupOptions
         if (string.IsNullOrWhiteSpace(Directory))
         {
             throw new InvalidOperationException("SqliteBackup:Directory must be configured.");
+        }
+
+        if (ArchiveDirectory is not null && string.IsNullOrWhiteSpace(ArchiveDirectory))
+        {
+            throw new InvalidOperationException(
+                "SqliteBackup:ArchiveDirectory must be omitted or contain a directory path.");
         }
 
         if (IntervalHours is < 1 or > 8760)
