@@ -535,6 +535,92 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Failed_login_attempts_lock_user_until_an_administrator_unlocks_the_account()
+    {
+        using var factory = new UserManagementWebApplicationFactory(loginPermitLimit: 8);
+        Assert.Equal(
+            "8",
+            factory.Services.GetRequiredService<IConfiguration>()["RateLimits:Account:LoginPermitLimit"]);
+        const string userEmail = "lockout-test-user@example.test";
+        const string userPassword = "LockoutUser123!";
+        await factory.CreateUserAsync(userEmail, userPassword);
+
+        using var userClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var loginToken = await GetPageTokenAsync(userClient, "/Account/Login");
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            using var response = await userClient.PostAsync(
+                "/Account/Login",
+                new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = loginToken,
+                    ["Email"] = userEmail,
+                    ["Password"] = "IncorrectPassword123!",
+                    ["RememberMe"] = "false"
+                }));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        Assert.True(await factory.IsUserLockedOutAsync(userEmail));
+        using var lockedLoginResponse = await userClient.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = loginToken,
+                ["Email"] = userEmail,
+                ["Password"] = "IncorrectPassword123!",
+                ["RememberMe"] = "false"
+            }));
+        Assert.Equal(HttpStatusCode.OK, lockedLoginResponse.StatusCode);
+        var lockedLoginPage = System.Net.WebUtility.HtmlDecode(
+            await lockedLoginResponse.Content.ReadAsStringAsync());
+        Assert.Contains(
+            "Tài khoản tạm khóa",
+            lockedLoginPage,
+            StringComparison.Ordinal);
+
+        using var administratorClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(administratorClient, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var administratorToken = await GetAntiforgeryTokenAsync(administratorClient);
+        var lockedUser = await FindUserAsync(administratorClient, userEmail);
+
+        using var unlockResponse = await PostWithTokenAsync(
+            administratorClient,
+            $"/Admin/Users/{lockedUser.Id}/edit",
+            administratorToken,
+            new
+            {
+                email = userEmail,
+                roleIds = Array.Empty<string>(),
+                isLocked = false
+            });
+        Assert.Equal(HttpStatusCode.OK, unlockResponse.StatusCode);
+        Assert.False(await factory.IsUserLockedOutAsync(userEmail));
+
+        using var successfulLoginResponse = await userClient.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = loginToken,
+                ["Email"] = userEmail,
+                ["Password"] = userPassword,
+                ["RememberMe"] = "false"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, successfulLoginResponse.StatusCode);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Login)
+            && entry.Outcome == nameof(AuditOutcome.LockedOut));
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1497,10 +1583,13 @@ public sealed class UserManagementEndpointTests
 
         public void FailEmailDelivery() => _emailSender.ShouldFail = true;
 
-        public UserManagementWebApplicationFactory()
+        public UserManagementWebApplicationFactory(int loginPermitLimit = 5)
         {
+            LoginPermitLimit = loginPermitLimit;
             _connection.Open();
         }
+
+        private int LoginPermitLimit { get; }
 
         public async Task GrantAccessManagementAsync(string email)
         {
@@ -1526,6 +1615,15 @@ public sealed class UserManagementEndpointTests
                 EmailConfirmed = true
             }, password);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
+        }
+
+        public async Task<bool> IsUserLockedOutAsync(string email)
+        {
+            using var scope = Services.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+            return await userManager.IsLockedOutAsync(user);
         }
 
         public async Task<string> CreateRoleForUserAsync(string email, string roleName)
@@ -1603,7 +1701,9 @@ public sealed class UserManagementEndpointTests
                     ["Email:PublicBaseUrl"] = "https://basemvc.example.test",
                     ["SqliteBackup:Enabled"] = "false",
                     ["SeedAdmin:Email"] = SuperAdminEmail,
-                    ["SeedAdmin:Password"] = SuperAdminPassword
+                    ["SeedAdmin:Password"] = SuperAdminPassword,
+                    ["RateLimits:Account:LoginPermitLimit"] = LoginPermitLimit.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture)
                 });
             });
 

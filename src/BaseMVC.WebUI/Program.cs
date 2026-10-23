@@ -12,10 +12,6 @@ using System.Globalization;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
-var accountRateLimits = builder.Configuration
-    .GetSection("RateLimits:Account")
-    .Get<AccountRateLimitOptions>() ?? new AccountRateLimitOptions();
-accountRateLimits.Validate();
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
@@ -32,6 +28,11 @@ builder.Services.AddSingleton<IBackupArchiveStore, FileSystemBackupArchiveStore>
 builder.Services.AddHostedService<SqliteDatabaseBackupService>();
 builder.Services.AddRateLimiter(options =>
 {
+    var accountRateLimits = builder.Configuration
+        .GetSection("RateLimits:Account")
+        .Get<AccountRateLimitOptions>() ?? new AccountRateLimitOptions();
+    accountRateLimits.Validate();
+
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
     {
