@@ -120,6 +120,9 @@ public sealed class UserManagementEndpointTests
         Assert.NotNull(superAdminSearch);
         var superAdmin = Assert.Single(superAdminSearch.Items);
         var superAdminRole = Assert.Single(roles, role => role.Name == IdentitySeedRoles.SuperAdmin);
+        const string secondSuperAdminEmail = "second-superadmin@example.test";
+        await factory.CreateUserAsync(secondSuperAdminEmail, "SecondAdmin123!");
+        await factory.AssignUserToRoleAsync(secondSuperAdminEmail, IdentitySeedRoles.SuperAdmin);
 
         using var changeSuperAdminEmailResponse = await PostWithTokenAsync(
             client,
@@ -140,6 +143,25 @@ public sealed class UserManagementEndpointTests
             "/Admin/Users/search?search=integration-superadmin%40example.test");
         Assert.NotNull(unchangedSuperAdmin);
         Assert.Equal(factory.SuperAdminEmail, Assert.Single(unchangedSuperAdmin.Items).Email);
+
+        using var changeEmailAndRemoveSuperAdminRoleResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{superAdmin.Id}/edit",
+            token,
+            new
+            {
+                email = "demoted-superadmin@example.test",
+                roleIds = Array.Empty<string>(),
+                isLocked = false
+            });
+        Assert.Equal(HttpStatusCode.Conflict, changeEmailAndRemoveSuperAdminRoleResponse.StatusCode);
+
+        var unchangedSuperAdminAfterDemotionAttempt = await client.GetFromJsonAsync<UserSearchDto>(
+            "/Admin/Users/search?search=integration-superadmin%40example.test");
+        Assert.NotNull(unchangedSuperAdminAfterDemotionAttempt);
+        var stillSuperAdmin = Assert.Single(unchangedSuperAdminAfterDemotionAttempt.Items);
+        Assert.Equal(factory.SuperAdminEmail, stillSuperAdmin.Email);
+        Assert.Contains(IdentitySeedRoles.SuperAdmin, stillSuperAdmin.RoleNames);
 
         using var selfLockResponse = await PostWithTokenAsync(
             client,
@@ -1349,6 +1371,17 @@ public sealed class UserManagementEndpointTests
                 assignmentResult.Succeeded,
                 string.Join("; ", assignmentResult.Errors.Select(error => error.Description)));
             return role.Id;
+        }
+
+        public async Task AssignUserToRoleAsync(string email, string roleName)
+        {
+            using var scope = Services.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+
+            var result = await userManager.AddToRoleAsync(user, roleName);
+            Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         }
 
         public async Task SetRolePermissionAsync(string roleName, string permission, bool grant)
