@@ -823,6 +823,14 @@ public sealed class UserManagementEndpointTests
         {
             AllowAutoRedirect = false
         });
+        using var anonymousMvcResponse = await anonymousClient.GetAsync("/Account/ChangePassword");
+        Assert.Equal(HttpStatusCode.Redirect, anonymousMvcResponse.StatusCode);
+        var loginUri = Assert.IsType<Uri>(anonymousMvcResponse.Headers.Location);
+        Assert.Equal("/Account/Login", loginUri.AbsolutePath);
+        Assert.Equal(
+            "/Account/ChangePassword",
+            Assert.Single(QueryHelpers.ParseQuery(loginUri.Query)["ReturnUrl"]));
+
         using var anonymousHtmlRequest = new HttpRequestMessage(HttpMethod.Get, "/Admin/Audit/search");
         anonymousHtmlRequest.Headers.Accept.ParseAdd("text/html");
 
@@ -851,9 +859,8 @@ public sealed class UserManagementEndpointTests
 
         const string userEmail = "audit-role-reader@example.test";
         const string roleName = "AuditRoleReader";
-        const string permission = "Permissions.Audit.Read";
         await factory.CreateUserAsync(userEmail, "RegularUser123!");
-        await factory.CreateRoleForUserAsync(userEmail, roleName);
+        var roleId = await factory.CreateRoleForUserAsync(userEmail, roleName);
 
         using var roleClient = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -861,19 +868,38 @@ public sealed class UserManagementEndpointTests
         });
         await SignInAsync(roleClient, userEmail, "RegularUser123!");
 
-        using var deniedHtmlRequest = new HttpRequestMessage(HttpMethod.Get, "/Admin/Audit");
-        deniedHtmlRequest.Headers.Accept.ParseAdd("text/html");
-        using var deniedHtmlResponse = await roleClient.SendAsync(deniedHtmlRequest);
-        Assert.Equal(HttpStatusCode.Forbidden, deniedHtmlResponse.StatusCode);
-        Assert.Contains("LỖI 403", await deniedHtmlResponse.Content.ReadAsStringAsync());
+        var accessCases = new[]
+        {
+            (Permission: "Permissions.Users.Read", Page: "/Admin/Users", Api: "/Admin/Users/search"),
+            (Permission: "Permissions.Roles.Read", Page: "/Admin/Roles", Api: "/Admin/Roles/search"),
+            (
+                Permission: "Permissions.Access.Read",
+                Page: "/Admin/Permissions",
+                Api: $"/Admin/Permissions/roles/{roleId}"),
+            (Permission: "Permissions.Audit.Read", Page: "/Admin/Audit", Api: "/Admin/Audit/search")
+        };
 
-        await factory.SetRolePermissionAsync(roleName, permission, grant: true);
-        using var grantedResponse = await roleClient.GetAsync("/Admin/Audit/search");
-        Assert.Equal(HttpStatusCode.OK, grantedResponse.StatusCode);
+        foreach (var accessCase in accessCases)
+        {
+            using var deniedPageRequest = new HttpRequestMessage(HttpMethod.Get, accessCase.Page);
+            deniedPageRequest.Headers.Accept.ParseAdd("text/html");
+            using var deniedPageResponse = await roleClient.SendAsync(deniedPageRequest);
+            Assert.Equal(HttpStatusCode.Forbidden, deniedPageResponse.StatusCode);
+            Assert.Contains("LỖI 403", await deniedPageResponse.Content.ReadAsStringAsync());
 
-        await factory.SetRolePermissionAsync(roleName, permission, grant: false);
-        using var revokedResponse = await roleClient.GetAsync("/Admin/Audit/search");
-        Assert.Equal(HttpStatusCode.Forbidden, revokedResponse.StatusCode);
+            using var deniedApiResponse = await roleClient.GetAsync(accessCase.Api);
+            Assert.Equal(HttpStatusCode.Forbidden, deniedApiResponse.StatusCode);
+
+            await factory.SetRolePermissionAsync(roleName, accessCase.Permission, grant: true);
+            using var grantedPageResponse = await roleClient.GetAsync(accessCase.Page);
+            Assert.Equal(HttpStatusCode.OK, grantedPageResponse.StatusCode);
+            using var grantedApiResponse = await roleClient.GetAsync(accessCase.Api);
+            Assert.Equal(HttpStatusCode.OK, grantedApiResponse.StatusCode);
+
+            await factory.SetRolePermissionAsync(roleName, accessCase.Permission, grant: false);
+            using var revokedApiResponse = await roleClient.GetAsync(accessCase.Api);
+            Assert.Equal(HttpStatusCode.Forbidden, revokedApiResponse.StatusCode);
+        }
     }
 
     [Fact]
@@ -1285,13 +1311,14 @@ public sealed class UserManagementEndpointTests
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         }
 
-        public async Task CreateRoleForUserAsync(string email, string roleName)
+        public async Task<string> CreateRoleForUserAsync(string email, string roleName)
         {
             using var scope = Services.CreateScope();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-            var roleResult = await roleManager.CreateAsync(new IdentityRole(roleName));
+            var role = new IdentityRole(roleName);
+            var roleResult = await roleManager.CreateAsync(role);
             Assert.True(roleResult.Succeeded, string.Join("; ", roleResult.Errors.Select(error => error.Description)));
 
             var user = await userManager.FindByEmailAsync(email);
@@ -1300,6 +1327,7 @@ public sealed class UserManagementEndpointTests
             Assert.True(
                 assignmentResult.Succeeded,
                 string.Join("; ", assignmentResult.Errors.Select(error => error.Description)));
+            return role.Id;
         }
 
         public async Task SetRolePermissionAsync(string roleName, string permission, bool grant)
