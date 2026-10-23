@@ -544,6 +544,12 @@ public sealed class UserManagementEndpointTests
         });
         await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
 
+        using var otherSessionClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(otherSessionClient, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
         using var pageResponse = await client.GetAsync("/Account/ChangePassword");
         pageResponse.EnsureSuccessStatusCode();
         var page = await pageResponse.Content.ReadAsStringAsync();
@@ -585,6 +591,10 @@ public sealed class UserManagementEndpointTests
             }));
         Assert.Equal(HttpStatusCode.Redirect, changeResponse.StatusCode);
         Assert.EndsWith("/Account/ChangePassword", changeResponse.Headers.Location?.OriginalString);
+
+        using var otherSessionResponse = await otherSessionClient.GetAsync("/Account/ChangePassword");
+        Assert.Equal(HttpStatusCode.Redirect, otherSessionResponse.StatusCode);
+        Assert.Equal("/Account/Login", Assert.IsType<Uri>(otherSessionResponse.Headers.Location).AbsolutePath);
 
         await SignOutAsync(client);
         await AssertLoginResponseAsync(
@@ -695,6 +705,12 @@ public sealed class UserManagementEndpointTests
                 ["email"] = factory.SuperAdminEmail,
                 ["code"] = code
             });
+        using var otherSessionClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(otherSessionClient, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
         var resetToken = await GetPageTokenAsync(client, resetPageUrl);
         using var resetResponse = await client.PostAsync(
             "/Account/ResetPassword",
@@ -711,6 +727,10 @@ public sealed class UserManagementEndpointTests
             "Mật khẩu đã cập nhật",
             WebUtility.HtmlDecode(await resetResponse.Content.ReadAsStringAsync()),
             StringComparison.Ordinal);
+
+        using var otherSessionResponse = await otherSessionClient.GetAsync("/Account/ChangePassword");
+        Assert.Equal(HttpStatusCode.Redirect, otherSessionResponse.StatusCode);
+        Assert.Equal("/Account/Login", Assert.IsType<Uri>(otherSessionResponse.Headers.Location).AbsolutePath);
 
         await AssertLoginResponseAsync(
             client,

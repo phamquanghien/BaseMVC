@@ -44,7 +44,8 @@ challenges use `/Account/Login`; denied authorization uses
 The application cookie checks the account's current lockout state on each
 authenticated request. Locking an account therefore invalidates its existing
 session on the next request; the user must sign in again after an administrator
-unlocks it.
+unlocks it. Security stamps are also checked on every request, so password
+changes and resets immediately invalidate other sessions for that account.
 
 Authenticated users can change their password at `/Account/ChangePassword`.
 The operation requires the current password, enforces the configured Identity
