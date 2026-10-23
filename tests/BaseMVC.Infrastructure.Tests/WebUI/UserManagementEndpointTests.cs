@@ -621,6 +621,64 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Successful_login_resets_the_failed_login_attempt_counter()
+    {
+        using var factory = new UserManagementWebApplicationFactory(loginPermitLimit: 10);
+        const string userEmail = "login-counter-test-user@example.test";
+        const string userPassword = "LoginCounterUser123!";
+        await factory.CreateUserAsync(userEmail, userPassword);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var loginToken = await GetPageTokenAsync(client, "/Account/Login");
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            using var failedLoginResponse = await PostLoginAsync(
+                client,
+                loginToken,
+                userEmail,
+                "IncorrectPassword123!");
+            Assert.Equal(HttpStatusCode.OK, failedLoginResponse.StatusCode);
+        }
+
+        Assert.Equal(4, await factory.GetAccessFailedCountAsync(userEmail));
+        using var successfulLoginResponse = await PostLoginAsync(
+            client,
+            loginToken,
+            userEmail,
+            userPassword);
+        Assert.Equal(HttpStatusCode.Redirect, successfulLoginResponse.StatusCode);
+        Assert.Equal(0, await factory.GetAccessFailedCountAsync(userEmail));
+
+        using var subsequentClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var subsequentLoginToken = await GetPageTokenAsync(subsequentClient, "/Account/Login");
+        for (var attempt = 0; attempt < 4; attempt++)
+        {
+            using var failedLoginResponse = await PostLoginAsync(
+                subsequentClient,
+                subsequentLoginToken,
+                userEmail,
+                "IncorrectPassword123!");
+            Assert.Equal(HttpStatusCode.OK, failedLoginResponse.StatusCode);
+        }
+
+        Assert.False(await factory.IsUserLockedOutAsync(userEmail));
+        Assert.Equal(4, await factory.GetAccessFailedCountAsync(userEmail));
+        using var lockoutThresholdResponse = await PostLoginAsync(
+            subsequentClient,
+            subsequentLoginToken,
+            userEmail,
+            "IncorrectPassword123!");
+        Assert.Equal(HttpStatusCode.OK, lockoutThresholdResponse.StatusCode);
+        Assert.True(await factory.IsUserLockedOutAsync(userEmail));
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1150,6 +1208,21 @@ public sealed class UserManagementEndpointTests
         response.EnsureSuccessStatusCode();
         return ExtractAntiforgeryToken(await response.Content.ReadAsStringAsync());
     }
+
+    private static Task<HttpResponseMessage> PostLoginAsync(
+        HttpClient client,
+        string antiforgeryToken,
+        string email,
+        string password) =>
+        client.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = antiforgeryToken,
+                ["Email"] = email,
+                ["Password"] = password,
+                ["RememberMe"] = "false"
+            }));
 
     private static void AssertLocalHomeRedirect(HttpClient client, HttpResponseMessage response)
     {
@@ -1835,6 +1908,15 @@ public sealed class UserManagementEndpointTests
             var user = await userManager.FindByEmailAsync(email);
             Assert.NotNull(user);
             return await userManager.IsLockedOutAsync(user);
+        }
+
+        public async Task<int> GetAccessFailedCountAsync(string email)
+        {
+            using var scope = Services.CreateScope();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+            return await userManager.GetAccessFailedCountAsync(user);
         }
 
         public async Task<string> CreateRoleForUserAsync(string email, string roleName)
