@@ -996,6 +996,79 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Expired_password_reset_token_cannot_change_password()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            resetTokenLifespan: TimeSpan.FromSeconds(1));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var forgotToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var forgotResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = forgotToken,
+                ["Email"] = factory.SuperAdminEmail
+            }));
+        Assert.Equal(HttpStatusCode.OK, forgotResponse.StatusCode);
+
+        var resetUrl = Assert.IsType<string>(factory.SentResetUrl);
+        var resetQuery = QueryHelpers.ParseQuery(new Uri(resetUrl).Query);
+        var resetCode = Assert.Single(resetQuery["code"]);
+        Assert.NotNull(resetCode);
+        var resetPageUrl = QueryHelpers.AddQueryString(
+            "/Account/ResetPassword",
+            new Dictionary<string, string?>
+            {
+                ["email"] = factory.SuperAdminEmail,
+                ["code"] = resetCode
+            });
+        var resetAntiforgeryToken = await GetPageTokenAsync(client, resetPageUrl);
+
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        using var expiredResetResponse = await client.PostAsync(
+            "/Account/ResetPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = resetAntiforgeryToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Code"] = resetCode,
+                ["Password"] = "ExpiredReset123!",
+                ["ConfirmPassword"] = "ExpiredReset123!"
+            }));
+        Assert.Equal(HttpStatusCode.OK, expiredResetResponse.StatusCode);
+        Assert.Contains(
+            "không hợp lệ hoặc đã hết hạn",
+            WebUtility.HtmlDecode(await expiredResetResponse.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            "ExpiredReset123!",
+            HttpStatusCode.OK);
+        await AssertLoginResponseAsync(
+            client,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword,
+            HttpStatusCode.Redirect);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetCompleted)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
+        AssertAuditEntriesContainNoSensitiveValues(
+            auditEntries,
+            factory.SuperAdminEmail,
+            resetCode,
+            resetUrl,
+            "ExpiredReset123!");
+    }
+
+    [Fact]
     public async Task Login_and_password_reset_requests_are_rate_limited_with_retry_after()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1713,13 +1786,18 @@ public sealed class UserManagementEndpointTests
 
         public void FailEmailDelivery() => _emailSender.ShouldFail = true;
 
-        public UserManagementWebApplicationFactory(int loginPermitLimit = 5)
+        public UserManagementWebApplicationFactory(
+            int loginPermitLimit = 5,
+            TimeSpan? resetTokenLifespan = null)
         {
             LoginPermitLimit = loginPermitLimit;
+            ResetTokenLifespan = resetTokenLifespan;
             _connection.Open();
         }
 
         private int LoginPermitLimit { get; }
+
+        private TimeSpan? ResetTokenLifespan { get; }
 
         public async Task GrantAccessManagementAsync(string email)
         {
@@ -1857,6 +1935,11 @@ public sealed class UserManagementEndpointTests
                 });
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(_emailSender);
+                if (ResetTokenLifespan is { } resetTokenLifespan)
+                {
+                    services.Configure<DataProtectionTokenProviderOptions>(options =>
+                        options.TokenLifespan = resetTokenLifespan);
+                }
             });
         }
 
