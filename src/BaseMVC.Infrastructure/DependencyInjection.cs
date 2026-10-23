@@ -3,6 +3,7 @@ using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -48,6 +49,10 @@ public static class DependencyInjection
         {
             options.LoginPath = "/Account/Login";
             options.AccessDeniedPath = "/Account/AccessDenied";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.ExpireTimeSpan = TimeSpan.FromDays(14);
             options.SlidingExpiration = true;
             options.EventsType = typeof(ApplicationCookieEvents);
         });

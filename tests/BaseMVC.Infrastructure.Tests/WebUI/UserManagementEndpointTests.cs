@@ -10,7 +10,9 @@ using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Auditing;
 using BaseMVC.WebUI.HealthChecks;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -31,6 +33,40 @@ namespace BaseMVC.Infrastructure.Tests.WebUI;
 
 public sealed class UserManagementEndpointTests
 {
+    [Fact]
+    public async Task Application_cookie_uses_secure_defaults_and_sliding_fourteen_day_expiration()
+    {
+        using var factory = new UserManagementWebApplicationFactory(enforceCookieSecurity: true);
+        var cookieOptions = factory.Services
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+
+        Assert.True(cookieOptions.Cookie.HttpOnly);
+        Assert.Equal(SameSiteMode.Lax, cookieOptions.Cookie.SameSite);
+        Assert.Equal(CookieSecurePolicy.Always, cookieOptions.Cookie.SecurePolicy);
+        Assert.Equal(TimeSpan.FromDays(14), cookieOptions.ExpireTimeSpan);
+        Assert.True(cookieOptions.SlidingExpiration);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var loginToken = await GetPageTokenAsync(client, "/Account/Login");
+        using var loginResponse = await PostLoginAsync(
+            client,
+            loginToken,
+            factory.SuperAdminEmail,
+            factory.SuperAdminPassword);
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+
+        var applicationCookie = Assert.Single(
+            loginResponse.Headers.GetValues("Set-Cookie"),
+            value => value.Contains("Identity.Application", StringComparison.Ordinal));
+        Assert.Contains("; secure", applicationCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; httponly", applicationCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("; samesite=lax", applicationCookie, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task User_crud_requires_antiforgery_and_protects_current_and_last_super_admin()
     {
@@ -1948,11 +1984,13 @@ public sealed class UserManagementEndpointTests
         public UserManagementWebApplicationFactory(
             int loginPermitLimit = 5,
             TimeSpan? resetTokenLifespan = null,
-            TimeSpan? lockoutTimeSpan = null)
+            TimeSpan? lockoutTimeSpan = null,
+            bool enforceCookieSecurity = false)
         {
             LoginPermitLimit = loginPermitLimit;
             ResetTokenLifespan = resetTokenLifespan;
             LockoutTimeSpan = lockoutTimeSpan;
+            EnforceCookieSecurity = enforceCookieSecurity;
             _connection.Open();
         }
 
@@ -1961,6 +1999,8 @@ public sealed class UserManagementEndpointTests
         private TimeSpan? ResetTokenLifespan { get; }
 
         private TimeSpan? LockoutTimeSpan { get; }
+
+        private bool EnforceCookieSecurity { get; }
 
         public async Task GrantAccessManagementAsync(string email)
         {
@@ -2107,6 +2147,13 @@ public sealed class UserManagementEndpointTests
                 });
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(_emailSender);
+                if (!EnforceCookieSecurity)
+                {
+                    services.PostConfigure<CookieAuthenticationOptions>(
+                        IdentityConstants.ApplicationScheme,
+                        options => options.Cookie.SecurePolicy = CookieSecurePolicy.None);
+                }
+
                 if (ResetTokenLifespan is { } resetTokenLifespan)
                 {
                     services.Configure<DataProtectionTokenProviderOptions>(options =>
@@ -2119,6 +2166,11 @@ public sealed class UserManagementEndpointTests
                         options.Lockout.DefaultLockoutTimeSpan = lockoutTimeSpan);
                 }
             });
+        }
+
+        protected override void ConfigureClient(HttpClient client)
+        {
+            client.BaseAddress = new Uri("https://localhost");
         }
 
         protected override void Dispose(bool disposing)
