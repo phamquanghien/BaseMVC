@@ -1008,6 +1008,15 @@ public sealed class UserManagementEndpointTests
         return ExtractAntiforgeryToken(await response.Content.ReadAsStringAsync());
     }
 
+    private static void AssertLocalHomeRedirect(HttpClient client, HttpResponseMessage response)
+    {
+        Assert.NotNull(client.BaseAddress);
+        Assert.NotNull(response.Headers.Location);
+        var destination = new Uri(client.BaseAddress, response.Headers.Location);
+        Assert.Equal(client.BaseAddress.Host, destination.Host);
+        Assert.Equal("/", destination.AbsolutePath);
+    }
+
     [Fact]
     public async Task Health_endpoints_are_anonymous_and_report_liveness_and_database_readiness()
     {
@@ -1211,6 +1220,41 @@ public sealed class UserManagementEndpointTests
             using var revokedApiResponse = await roleClient.GetAsync(accessCase.Api);
             Assert.Equal(HttpStatusCode.Forbidden, revokedApiResponse.StatusCode);
         }
+    }
+
+    [Fact]
+    public async Task Login_and_logout_reject_external_return_urls()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var loginToken = await GetPageTokenAsync(client, "/Account/Login");
+        using var loginResponse = await client.PostAsync(
+            "/Account/Login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = loginToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Password"] = factory.SuperAdminPassword,
+                ["RememberMe"] = "false",
+                ["ReturnUrl"] = "https://attacker.example"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        AssertLocalHomeRedirect(client, loginResponse);
+
+        var logoutToken = await GetAntiforgeryTokenAsync(client);
+        using var logoutResponse = await client.PostAsync(
+            "/Account/Logout",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = logoutToken,
+                ["returnUrl"] = "//attacker.example"
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, logoutResponse.StatusCode);
+        AssertLocalHomeRedirect(client, logoutResponse);
     }
 
     [Fact]
