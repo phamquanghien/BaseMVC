@@ -874,6 +874,56 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Password_reset_does_not_send_links_to_unconfirmed_email_addresses()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        const string unconfirmedEmail = "unconfirmed-reset-user@example.test";
+        await factory.CreateUserAsync(
+            unconfirmedEmail,
+            "UnconfirmedUser123!",
+            emailConfirmed: false);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var unknownAccountToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var unknownAccountResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = unknownAccountToken,
+                ["Email"] = "unknown-reset-user@example.test"
+            }));
+        Assert.Equal(HttpStatusCode.OK, unknownAccountResponse.StatusCode);
+        var confirmationPage = await unknownAccountResponse.Content.ReadAsStringAsync();
+
+        var unconfirmedAccountToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
+        using var unconfirmedAccountResponse = await client.PostAsync(
+            "/Account/ForgotPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = unconfirmedAccountToken,
+                ["Email"] = unconfirmedEmail
+            }));
+        Assert.Equal(HttpStatusCode.OK, unconfirmedAccountResponse.StatusCode);
+        Assert.Equal(
+            confirmationPage,
+            await unconfirmedAccountResponse.Content.ReadAsStringAsync());
+        Assert.Null(factory.LastSentRecipient);
+        Assert.Null(factory.SentResetUrl);
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        var resetRequests = auditEntries
+            .Where(entry =>
+                entry.EventType == nameof(AuditEventType.PasswordResetRequested)
+                && entry.Outcome == nameof(AuditOutcome.Accepted))
+            .ToArray();
+        Assert.Equal(2, resetRequests.Length);
+        Assert.All(resetRequests, entry => Assert.Null(entry.TargetUserId));
+    }
+
+    [Fact]
     public async Task Password_reset_requires_antiforgery_and_invalid_tokens_cannot_change_password()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1684,7 +1734,10 @@ public sealed class UserManagementEndpointTests
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         }
 
-        public async Task CreateUserAsync(string email, string password)
+        public async Task CreateUserAsync(
+            string email,
+            string password,
+            bool emailConfirmed = true)
         {
             using var scope = Services.CreateScope();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -1692,7 +1745,7 @@ public sealed class UserManagementEndpointTests
             {
                 UserName = email,
                 Email = email,
-                EmailConfirmed = true
+                EmailConfirmed = emailConfirmed
             }, password);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
         }
