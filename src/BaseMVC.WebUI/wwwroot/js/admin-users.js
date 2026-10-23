@@ -16,6 +16,7 @@
   const modalDescription = manager.querySelector("[data-user-modal-description]");
   const modalError = manager.querySelector("[data-user-modal-error]");
   const emailInput = manager.querySelector("#user-email");
+  const protectedEmailNote = manager.querySelector("#user-email-protected-note");
   const passwordContainer = manager.querySelector("[data-user-password-container]");
   const passwordInput = manager.querySelector("#user-password");
   const lockContainer = manager.querySelector("[data-user-lock-container]");
@@ -46,6 +47,7 @@
     !(modalDescription instanceof HTMLElement) ||
     !(modalError instanceof HTMLElement) ||
     !(emailInput instanceof HTMLInputElement) ||
+    !(protectedEmailNote instanceof HTMLElement) ||
     !(passwordContainer instanceof HTMLElement) ||
     !(passwordInput instanceof HTMLInputElement) ||
     !(lockContainer instanceof HTMLElement) ||
@@ -276,16 +278,25 @@
       modalDescription.textContent = "Tạo tài khoản Identity mới với mật khẩu ban đầu.";
       submitButton.textContent = "Tạo tài khoản";
       emailInput.value = "";
+      emailInput.readOnly = false;
+      protectedEmailNote.classList.add("hidden");
       buildRoleChoices();
     } else if (user) {
+      const isSuperAdmin = user.roleNames.some(
+        (roleName) => roleName.toLocaleLowerCase() === "superadmin",
+      );
       modalTitle.textContent = "Chỉnh sửa người dùng";
-      modalDescription.textContent = `Cập nhật email, role và trạng thái của ${user.email}.`;
+      modalDescription.textContent = isSuperAdmin
+        ? `Cập nhật role và trạng thái của ${user.email}.`
+        : `Cập nhật email, role và trạng thái của ${user.email}.`;
       submitButton.textContent = "Lưu thay đổi";
       emailInput.value = user.email;
+      emailInput.readOnly = isSuperAdmin;
+      protectedEmailNote.classList.toggle("hidden", !isSuperAdmin);
       buildRoleChoices(user.roleNames);
     }
     modal.showModal();
-    emailInput.focus();
+    if (!emailInput.readOnly) emailInput.focus();
   };
   const userUrl = (template, userId) =>
     template.replace("__userId__", encodeURIComponent(userId));
