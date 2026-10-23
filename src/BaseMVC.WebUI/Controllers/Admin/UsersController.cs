@@ -212,6 +212,15 @@ public sealed class UsersController(
         }
 
         var newEmail = request.Email.Trim();
+        if (currentRoles.Contains(IdentitySeedRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase)
+            && !string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            return Conflict(new
+            {
+                errors = new[] { "Không thể thay đổi email của tài khoản có role SuperAdmin." }
+            });
+        }
+
         if (!string.Equals(user.Email, newEmail, StringComparison.OrdinalIgnoreCase))
         {
             var existingUser = await userManager.FindByEmailAsync(newEmail);

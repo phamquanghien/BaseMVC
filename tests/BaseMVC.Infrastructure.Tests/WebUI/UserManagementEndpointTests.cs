@@ -119,6 +119,27 @@ public sealed class UserManagementEndpointTests
             "/Admin/Users/search?search=integration-superadmin%40example.test");
         Assert.NotNull(superAdminSearch);
         var superAdmin = Assert.Single(superAdminSearch.Items);
+        var superAdminRole = Assert.Single(roles, role => role.Name == IdentitySeedRoles.SuperAdmin);
+
+        using var changeSuperAdminEmailResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{superAdmin.Id}/edit",
+            token,
+            new
+            {
+                email = "renamed-superadmin@example.test",
+                roleIds = new[] { superAdminRole.Id },
+                isLocked = false
+            });
+        Assert.Equal(HttpStatusCode.Conflict, changeSuperAdminEmailResponse.StatusCode);
+        Assert.Contains(
+            "Không thể thay đổi email của tài khoản có role SuperAdmin.",
+            await changeSuperAdminEmailResponse.Content.ReadAsStringAsync());
+
+        var unchangedSuperAdmin = await client.GetFromJsonAsync<UserSearchDto>(
+            "/Admin/Users/search?search=integration-superadmin%40example.test");
+        Assert.NotNull(unchangedSuperAdmin);
+        Assert.Equal(factory.SuperAdminEmail, Assert.Single(unchangedSuperAdmin.Items).Email);
 
         using var selfLockResponse = await PostWithTokenAsync(
             client,
