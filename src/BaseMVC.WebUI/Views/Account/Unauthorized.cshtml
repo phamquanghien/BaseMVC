@@ -1,0 +1,30 @@
+@{
+    ViewData["Title"] = "Cần đăng nhập";
+    var returnUrl = ViewData["ReturnUrl"] as string ?? "/";
+}
+
+<section class="hero min-h-[60vh]">
+    <div class="hero-content w-full max-w-3xl px-0 text-center">
+        <div class="card w-full border border-base-300 bg-base-100 shadow-xl">
+            <div class="card-body items-center gap-5 px-6 py-10 sm:px-12 sm:py-14">
+                <div class="grid size-20 place-items-center rounded-full bg-primary/10 text-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.7" d="M16 11V7a4 4 0 0 0-8 0v4m-1 0h10a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2Zm5 4v2" />
+                    </svg>
+                </div>
+                <div class="space-y-3">
+                    <p class="badge badge-primary badge-outline font-semibold">LỖI 401</p>
+                    <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">Bạn cần đăng nhập để tiếp tục</h1>
+                    <p class="mx-auto max-w-xl text-base-content/70">
+                        Phiên đăng nhập chưa được xác thực hoặc đã hết hạn. Đăng nhập bằng tài khoản được cấp để tiếp tục.
+                    </p>
+                </div>
+                <div class="mt-2 flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
+                    <a class="btn btn-primary" asp-controller="Account" asp-action="Login" asp-route-returnUrl="@returnUrl">Đăng nhập</a>
+                    <a class="btn btn-outline" asp-controller="Home" asp-action="Index">Về trang chủ</a>
+                </div>
+                <p class="text-xs text-base-content/50">Bạn sẽ được đưa trở lại trang đang yêu cầu sau khi đăng nhập.</p>
+            </div>
+        </div>
+    </div>
+</section>

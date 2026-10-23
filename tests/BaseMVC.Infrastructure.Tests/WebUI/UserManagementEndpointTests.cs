@@ -816,6 +816,67 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Authorization_status_pages_distinguish_anonymous_and_forbidden_users_and_apply_role_changes_immediately()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var anonymousClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        using var anonymousHtmlRequest = new HttpRequestMessage(HttpMethod.Get, "/Admin/Audit/search");
+        anonymousHtmlRequest.Headers.Accept.ParseAdd("text/html");
+
+        using var anonymousHtmlResponse = await anonymousClient.SendAsync(anonymousHtmlRequest);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousHtmlResponse.StatusCode);
+        var unauthorizedPage = await anonymousHtmlResponse.Content.ReadAsStringAsync();
+        Assert.Contains("LỖI 401", unauthorizedPage);
+        Assert.Contains("Bạn cần đăng nhập để tiếp tục", unauthorizedPage);
+        Assert.Contains("/Account/Login?returnUrl=", unauthorizedPage);
+        Assert.Contains("%2FAdmin%2FAudit%2Fsearch", unauthorizedPage);
+
+        using var anonymousJsonRequest = new HttpRequestMessage(HttpMethod.Get, "/Admin/Audit/search");
+        anonymousJsonRequest.Headers.Accept.ParseAdd("application/json");
+        using var anonymousJsonResponse = await anonymousClient.SendAsync(anonymousJsonRequest);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousJsonResponse.StatusCode);
+        Assert.Equal("application/problem+json", anonymousJsonResponse.Content.Headers.ContentType?.MediaType);
+
+        using var anonymousPostRequest = new HttpRequestMessage(HttpMethod.Post, "/Admin/Users")
+        {
+            Content = JsonContent.Create(new { email = "anonymous@example.test" })
+        };
+        anonymousPostRequest.Headers.Accept.ParseAdd("application/json");
+        using var anonymousPostResponse = await anonymousClient.SendAsync(anonymousPostRequest);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousPostResponse.StatusCode);
+        Assert.Equal("application/problem+json", anonymousPostResponse.Content.Headers.ContentType?.MediaType);
+
+        const string userEmail = "audit-role-reader@example.test";
+        const string roleName = "AuditRoleReader";
+        const string permission = "Permissions.Audit.Read";
+        await factory.CreateUserAsync(userEmail, "RegularUser123!");
+        await factory.CreateRoleForUserAsync(userEmail, roleName);
+
+        using var roleClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(roleClient, userEmail, "RegularUser123!");
+
+        using var deniedHtmlRequest = new HttpRequestMessage(HttpMethod.Get, "/Admin/Audit");
+        deniedHtmlRequest.Headers.Accept.ParseAdd("text/html");
+        using var deniedHtmlResponse = await roleClient.SendAsync(deniedHtmlRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, deniedHtmlResponse.StatusCode);
+        Assert.Contains("LỖI 403", await deniedHtmlResponse.Content.ReadAsStringAsync());
+
+        await factory.SetRolePermissionAsync(roleName, permission, grant: true);
+        using var grantedResponse = await roleClient.GetAsync("/Admin/Audit/search");
+        Assert.Equal(HttpStatusCode.OK, grantedResponse.StatusCode);
+
+        await factory.SetRolePermissionAsync(roleName, permission, grant: false);
+        using var revokedResponse = await roleClient.GetAsync("/Admin/Audit/search");
+        Assert.Equal(HttpStatusCode.Forbidden, revokedResponse.StatusCode);
+    }
+
+    [Fact]
     public async Task Audit_retention_deletes_only_entries_older_than_90_days()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1222,6 +1283,48 @@ public sealed class UserManagementEndpointTests
                 EmailConfirmed = true
             }, password);
             Assert.True(result.Succeeded, string.Join("; ", result.Errors.Select(error => error.Description)));
+        }
+
+        public async Task CreateRoleForUserAsync(string email, string roleName)
+        {
+            using var scope = Services.CreateScope();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+            var roleResult = await roleManager.CreateAsync(new IdentityRole(roleName));
+            Assert.True(roleResult.Succeeded, string.Join("; ", roleResult.Errors.Select(error => error.Description)));
+
+            var user = await userManager.FindByEmailAsync(email);
+            Assert.NotNull(user);
+            var assignmentResult = await userManager.AddToRoleAsync(user, roleName);
+            Assert.True(
+                assignmentResult.Succeeded,
+                string.Join("; ", assignmentResult.Errors.Select(error => error.Description)));
+        }
+
+        public async Task SetRolePermissionAsync(string roleName, string permission, bool grant)
+        {
+            using var scope = Services.CreateScope();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var role = await roleManager.FindByNameAsync(roleName);
+            Assert.NotNull(role);
+
+            var claims = await roleManager.GetClaimsAsync(role);
+            var existingClaim = claims.FirstOrDefault(claim =>
+                claim.Type == PermissionClaim.Type && claim.Value == permission);
+
+            if (grant && existingClaim is null)
+            {
+                var addResult = await roleManager.AddClaimAsync(role, new Claim(PermissionClaim.Type, permission));
+                Assert.True(addResult.Succeeded, string.Join("; ", addResult.Errors.Select(error => error.Description)));
+            }
+            else if (!grant && existingClaim is not null)
+            {
+                var removeResult = await roleManager.RemoveClaimAsync(role, existingClaim);
+                Assert.True(
+                    removeResult.Succeeded,
+                    string.Join("; ", removeResult.Errors.Select(error => error.Description)));
+            }
         }
 
         public void PointToUnavailableDatabase()

@@ -323,7 +323,43 @@ public sealed class AccountController(
 
     [AllowAnonymous]
     [HttpGet]
-    public IActionResult AccessDenied() => View();
+    public IActionResult AccessDenied()
+    {
+        Response.StatusCode = StatusCodes.Status403Forbidden;
+        ViewData["ReturnUrl"] = "/";
+        return View();
+    }
+
+    [AllowAnonymous]
+    [Route("{statusCode:int}")]
+    public IActionResult StatusCodePage(int statusCode, string? returnUrl = null)
+    {
+        if (statusCode is not (StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden))
+        {
+            return StatusCode(statusCode);
+        }
+
+        Response.StatusCode = statusCode;
+        ViewData["ReturnUrl"] = Url.IsLocalUrl(returnUrl) ? returnUrl : "/";
+
+        if (Request.GetTypedHeaders().Accept?.Any(mediaType =>
+            string.Equals(mediaType.MediaType.Value, "text/html", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mediaType.MediaType.Value, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase)) != true)
+        {
+            return Problem(
+                statusCode: statusCode,
+                title: statusCode == StatusCodes.Status401Unauthorized
+                    ? "Authentication required"
+                    : "Access denied",
+                detail: statusCode == StatusCodes.Status401Unauthorized
+                    ? "Sign in to continue."
+                    : "Your account does not have permission to access this resource.");
+        }
+
+        return statusCode == StatusCodes.Status401Unauthorized
+            ? View("Unauthorized")
+            : View("AccessDenied");
+    }
 
     private IActionResult RedirectToLocal(string? returnUrl) =>
         Url.IsLocalUrl(returnUrl)

@@ -114,6 +114,26 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.Use(async (context, next) =>
+{
+    await next();
+
+    var statusCode = context.Response.StatusCode;
+    if (statusCode is not (StatusCodes.Status401Unauthorized or StatusCodes.Status403Forbidden)
+        || context.Response.HasStarted
+        || context.Response.ContentLength is not null)
+    {
+        return;
+    }
+
+    var returnUrl = $"{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
+    context.Request.Path = $"/Account/StatusCodePage/{statusCode}";
+    context.Request.QueryString = QueryString.Create("returnUrl", returnUrl);
+    context.SetEndpoint(null);
+    context.Response.ContentType = null;
+    context.Response.ContentLength = null;
+    await next();
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
