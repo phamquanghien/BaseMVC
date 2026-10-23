@@ -535,6 +535,45 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Lockout_after_failed_logins_invalidates_an_existing_session()
+    {
+        using var factory = new UserManagementWebApplicationFactory(loginPermitLimit: 6);
+        const string userEmail = "session-lockout-test-user@example.test";
+        const string userPassword = "SessionLockoutUser123!";
+        await factory.CreateUserAsync(userEmail, userPassword);
+
+        using var authenticatedClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(authenticatedClient, userEmail, userPassword);
+        using var beforeLockoutResponse = await authenticatedClient.GetAsync("/Account/ChangePassword");
+        Assert.Equal(HttpStatusCode.OK, beforeLockoutResponse.StatusCode);
+
+        using var failedLoginClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var loginToken = await GetPageTokenAsync(failedLoginClient, "/Account/Login");
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            using var failedLoginResponse = await PostLoginAsync(
+                failedLoginClient,
+                loginToken,
+                userEmail,
+                "IncorrectPassword123!");
+            Assert.Equal(HttpStatusCode.OK, failedLoginResponse.StatusCode);
+        }
+
+        Assert.True(await factory.IsUserLockedOutAsync(userEmail));
+        using var responseAfterLockout = await authenticatedClient.GetAsync("/Account/ChangePassword");
+        Assert.Equal(HttpStatusCode.Redirect, responseAfterLockout.StatusCode);
+        Assert.Equal(
+            "/Account/Login",
+            Assert.IsType<Uri>(responseAfterLockout.Headers.Location).AbsolutePath);
+    }
+
+    [Fact]
     public async Task Failed_login_attempts_lock_user_until_an_administrator_unlocks_the_account()
     {
         using var factory = new UserManagementWebApplicationFactory(loginPermitLimit: 8);
