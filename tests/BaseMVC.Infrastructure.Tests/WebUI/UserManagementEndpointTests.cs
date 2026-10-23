@@ -679,6 +679,53 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Expired_login_lockout_allows_user_to_sign_in_without_administrator_intervention()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            loginPermitLimit: 7,
+            lockoutTimeSpan: TimeSpan.FromSeconds(1));
+        const string userEmail = "expired-lockout-test-user@example.test";
+        const string userPassword = "ExpiredLockoutUser123!";
+        await factory.CreateUserAsync(userEmail, userPassword);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        var loginToken = await GetPageTokenAsync(client, "/Account/Login");
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            using var failedLoginResponse = await PostLoginAsync(
+                client,
+                loginToken,
+                userEmail,
+                "IncorrectPassword123!");
+            Assert.Equal(HttpStatusCode.OK, failedLoginResponse.StatusCode);
+        }
+
+        Assert.True(await factory.IsUserLockedOutAsync(userEmail));
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        Assert.False(await factory.IsUserLockedOutAsync(userEmail));
+
+        using var successfulLoginResponse = await PostLoginAsync(
+            client,
+            loginToken,
+            userEmail,
+            userPassword);
+        Assert.Equal(HttpStatusCode.Redirect, successfulLoginResponse.StatusCode);
+        Assert.False(await factory.IsUserLockedOutAsync(userEmail));
+        Assert.Equal(0, await factory.GetAccessFailedCountAsync(userEmail));
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Login)
+            && entry.Outcome == nameof(AuditOutcome.LockedOut));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.Login)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded));
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1861,16 +1908,20 @@ public sealed class UserManagementEndpointTests
 
         public UserManagementWebApplicationFactory(
             int loginPermitLimit = 5,
-            TimeSpan? resetTokenLifespan = null)
+            TimeSpan? resetTokenLifespan = null,
+            TimeSpan? lockoutTimeSpan = null)
         {
             LoginPermitLimit = loginPermitLimit;
             ResetTokenLifespan = resetTokenLifespan;
+            LockoutTimeSpan = lockoutTimeSpan;
             _connection.Open();
         }
 
         private int LoginPermitLimit { get; }
 
         private TimeSpan? ResetTokenLifespan { get; }
+
+        private TimeSpan? LockoutTimeSpan { get; }
 
         public async Task GrantAccessManagementAsync(string email)
         {
@@ -2021,6 +2072,12 @@ public sealed class UserManagementEndpointTests
                 {
                     services.Configure<DataProtectionTokenProviderOptions>(options =>
                         options.TokenLifespan = resetTokenLifespan);
+                }
+
+                if (LockoutTimeSpan is { } lockoutTimeSpan)
+                {
+                    services.Configure<IdentityOptions>(options =>
+                        options.Lockout.DefaultLockoutTimeSpan = lockoutTimeSpan);
                 }
             });
         }
