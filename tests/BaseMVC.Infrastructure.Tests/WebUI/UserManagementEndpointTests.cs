@@ -960,6 +960,14 @@ public sealed class UserManagementEndpointTests
             }));
         Assert.Equal(HttpStatusCode.TooManyRequests, limitedLoginResponse.StatusCode);
         Assert.NotNull(limitedLoginResponse.Headers.RetryAfter);
+        Assert.InRange(
+            limitedLoginResponse.Headers.RetryAfter!.Delta!.Value,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(300));
+        Assert.Contains(
+            "Bạn thao tác quá nhanh",
+            await limitedLoginResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
 
         var resetToken = await GetPageTokenAsync(client, "/Account/ForgotPassword");
         for (var attempt = 0; attempt < 3; attempt++)
@@ -983,6 +991,14 @@ public sealed class UserManagementEndpointTests
             }));
         Assert.Equal(HttpStatusCode.TooManyRequests, limitedResetResponse.StatusCode);
         Assert.NotNull(limitedResetResponse.Headers.RetryAfter);
+        Assert.InRange(
+            limitedResetResponse.Headers.RetryAfter!.Delta!.Value,
+            TimeSpan.FromSeconds(1),
+            TimeSpan.FromSeconds(900));
+        Assert.Contains(
+            "Bạn thao tác quá nhanh",
+            await limitedResetResponse.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
     }
 
     private static async Task<string> GetPageTokenAsync(HttpClient client, string path)
