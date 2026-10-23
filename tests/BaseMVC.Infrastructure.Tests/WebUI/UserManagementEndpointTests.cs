@@ -814,6 +814,22 @@ public sealed class UserManagementEndpointTests
             WebUtility.HtmlDecode(await resetResponse.Content.ReadAsStringAsync()),
             StringComparison.Ordinal);
 
+        using var replayedResetResponse = await client.PostAsync(
+            "/Account/ResetPassword",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = resetToken,
+                ["Email"] = factory.SuperAdminEmail,
+                ["Code"] = code,
+                ["Password"] = "ReplayAttempt123!",
+                ["ConfirmPassword"] = "ReplayAttempt123!"
+            }));
+        Assert.Equal(HttpStatusCode.OK, replayedResetResponse.StatusCode);
+        Assert.Contains(
+            "không hợp lệ hoặc đã hết hạn",
+            WebUtility.HtmlDecode(await replayedResetResponse.Content.ReadAsStringAsync()),
+            StringComparison.Ordinal);
+
         using var otherSessionResponse = await otherSessionClient.GetAsync("/Account/ChangePassword");
         Assert.Equal(HttpStatusCode.Redirect, otherSessionResponse.StatusCode);
         Assert.Equal("/Account/Login", Assert.IsType<Uri>(otherSessionResponse.Headers.Location).AbsolutePath);
@@ -845,12 +861,16 @@ public sealed class UserManagementEndpointTests
         Assert.Contains(auditEntries, entry =>
             entry.EventType == nameof(AuditEventType.PasswordResetCompleted)
             && entry.Outcome == nameof(AuditOutcome.Succeeded));
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.PasswordResetCompleted)
+            && entry.Outcome == nameof(AuditOutcome.Failed));
         AssertAuditEntriesContainNoSensitiveValues(
             auditEntries,
             factory.SuperAdminEmail,
             code,
             resetUrl,
-            "RecoveredPassword123!");
+            "RecoveredPassword123!",
+            "ReplayAttempt123!");
     }
 
     [Fact]
