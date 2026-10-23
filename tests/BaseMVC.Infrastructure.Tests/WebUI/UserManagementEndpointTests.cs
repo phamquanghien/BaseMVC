@@ -492,6 +492,49 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Locking_user_invalidates_their_existing_authenticated_session()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var administratorClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(administratorClient, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
+        const string targetEmail = "active-session-superadmin@example.test";
+        await factory.CreateUserAsync(targetEmail, "TargetAdmin123!");
+        await factory.AssignUserToRoleAsync(targetEmail, IdentitySeedRoles.SuperAdmin);
+        var targetUser = await FindUserAsync(administratorClient, targetEmail);
+        var roles = await administratorClient.GetFromJsonAsync<List<RoleDto>>("/Admin/Users/roles");
+        Assert.NotNull(roles);
+        var superAdminRole = Assert.Single(roles, role => role.Name == IdentitySeedRoles.SuperAdmin);
+        var administratorToken = await GetAntiforgeryTokenAsync(administratorClient);
+
+        using var targetClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(targetClient, targetEmail, "TargetAdmin123!");
+        using var authorizedBeforeLockResponse = await targetClient.GetAsync("/Admin/Audit/search");
+        Assert.Equal(HttpStatusCode.OK, authorizedBeforeLockResponse.StatusCode);
+
+        using var lockResponse = await PostWithTokenAsync(
+            administratorClient,
+            $"/Admin/Users/{targetUser.Id}/edit",
+            administratorToken,
+            new
+            {
+                email = targetEmail,
+                roleIds = new[] { superAdminRole.Id },
+                isLocked = true
+            });
+        Assert.Equal(HttpStatusCode.OK, lockResponse.StatusCode);
+
+        using var responseAfterLock = await targetClient.GetAsync("/Admin/Audit/search");
+        Assert.Equal(HttpStatusCode.Unauthorized, responseAfterLock.StatusCode);
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
     {
         using var factory = new UserManagementWebApplicationFactory();

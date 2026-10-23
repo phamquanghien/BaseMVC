@@ -41,6 +41,10 @@ expose public self-registration. Sign-out is a protected POST request, and
 login and logout forms include ASP.NET Core Anti-Forgery tokens. Cookie
 challenges use `/Account/Login`; denied authorization uses
 `/Account/AccessDenied`.
+The application cookie checks the account's current lockout state on each
+authenticated request. Locking an account therefore invalidates its existing
+session on the next request; the user must sign in again after an administrator
+unlocks it.
 
 Authenticated users can change their password at `/Account/ChangePassword`.
 The operation requires the current password, enforces the configured Identity

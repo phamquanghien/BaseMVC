@@ -49,6 +49,7 @@ public static class DependencyInjection
             options.LoginPath = "/Account/Login";
             options.AccessDeniedPath = "/Account/AccessDenied";
             options.SlidingExpiration = true;
+            options.EventsType = typeof(ApplicationCookieEvents);
         });
 
         services.AddHttpContextAccessor();
@@ -56,6 +57,7 @@ public static class DependencyInjection
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
         services.AddScoped<IdentitySeeder>();
+        services.AddScoped<ApplicationCookieEvents>();
         services.AddScoped<IAuditLogWriter, AuditLogWriter>();
 
         return services;
