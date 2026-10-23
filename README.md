@@ -118,10 +118,10 @@ use JSON endpoints; authorized operators can create accounts with an initial
 password, update email and role assignments, lock/unlock accounts, and delete
 accounts without reloading the page. All write requests require an
 ASP.NET Core Anti-Forgery token. Editing does not change an existing password.
-Operators cannot lock or delete their own account, and the last SuperAdmin
-cannot be locked, removed from the SuperAdmin role, or deleted. Email addresses
-of accounts assigned to the SuperAdmin role cannot be changed. Assigning the
-SuperAdmin role additionally requires `Permissions.Access.Manage`.
+Operators cannot lock or delete their own account, and the last unlocked
+SuperAdmin cannot be locked, removed from the SuperAdmin role, or deleted.
+Email addresses of accounts assigned to the SuperAdmin role cannot be changed.
+Assigning the SuperAdmin role additionally requires `Permissions.Access.Manage`.
 
 ## Role permissions
 

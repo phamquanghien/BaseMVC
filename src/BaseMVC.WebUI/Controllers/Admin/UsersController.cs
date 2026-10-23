@@ -202,13 +202,17 @@ public sealed class UsersController(
             IdentitySeedRoles.SuperAdmin,
             StringComparer.OrdinalIgnoreCase)
             && !desiredRoles.Contains(IdentitySeedRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase);
-        if (removesSuperAdmin || request.IsLocked)
+        var locksSuperAdmin = currentRoles.Contains(
+            IdentitySeedRoles.SuperAdmin,
+            StringComparer.OrdinalIgnoreCase)
+            && request.IsLocked;
+        if ((removesSuperAdmin || locksSuperAdmin)
+            && !await HasOtherUnlockedSuperAdminAsync(user.Id))
         {
-            var superAdmins = await userManager.GetUsersInRoleAsync(IdentitySeedRoles.SuperAdmin);
-            if (superAdmins.Count == 1 && superAdmins[0].Id == user.Id)
+            return Conflict(new
             {
-                return Conflict(new { errors = new[] { "Không thể khóa hoặc gỡ role của SuperAdmin cuối cùng." } });
-            }
+                errors = new[] { "Không thể khóa hoặc gỡ role của SuperAdmin có thể đăng nhập cuối cùng." }
+            });
         }
 
         var newEmail = request.Email.Trim();
@@ -312,10 +316,14 @@ public sealed class UsersController(
             return NotFound(new { errors = new[] { "Không tìm thấy tài khoản." } });
         }
 
-        var adminUsers = await userManager.GetUsersInRoleAsync(IdentitySeedRoles.SuperAdmin);
-        if (adminUsers.Count == 1 && adminUsers[0].Id == user.Id)
+        var userRoles = await userManager.GetRolesAsync(user);
+        if (userRoles.Contains(IdentitySeedRoles.SuperAdmin, StringComparer.OrdinalIgnoreCase)
+            && !await HasOtherUnlockedSuperAdminAsync(user.Id))
         {
-            return Conflict(new { errors = new[] { "Không thể xóa SuperAdmin cuối cùng." } });
+            return Conflict(new
+            {
+                errors = new[] { "Không thể xóa SuperAdmin có thể đăng nhập cuối cùng." }
+            });
         }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -397,5 +405,14 @@ public sealed class UsersController(
             lockoutEnd > DateTimeOffset.UtcNow,
             string.Equals(user.Id, userManager.GetUserId(User), StringComparison.Ordinal),
             (await userManager.GetRolesAsync(user)).ToArray());
+    }
+
+    private async Task<bool> HasOtherUnlockedSuperAdminAsync(string excludedUserId)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var superAdmins = await userManager.GetUsersInRoleAsync(IdentitySeedRoles.SuperAdmin);
+        return superAdmins.Any(user =>
+            user.Id != excludedUserId
+            && (user.LockoutEnd is null || user.LockoutEnd <= now));
     }
 }

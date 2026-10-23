@@ -389,6 +389,109 @@ public sealed class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task User_management_preserves_an_unlocked_super_admin_when_other_super_admins_are_locked()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var setupClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(setupClient, factory.SuperAdminEmail, factory.SuperAdminPassword);
+
+        var roles = await setupClient.GetFromJsonAsync<List<RoleDto>>("/Admin/Users/roles");
+        Assert.NotNull(roles);
+        var superAdminRole = Assert.Single(roles, role => role.Name == IdentitySeedRoles.SuperAdmin);
+        var administratorRole = Assert.Single(roles, role => role.Name == IdentitySeedRoles.Administrator);
+
+        const string secondSuperAdminEmail = "lock-test-superadmin@example.test";
+        const string operatorEmail = "lock-test-operator@example.test";
+        await factory.CreateUserAsync(secondSuperAdminEmail, "SecondAdmin123!");
+        await factory.AssignUserToRoleAsync(secondSuperAdminEmail, IdentitySeedRoles.SuperAdmin);
+        await factory.CreateUserAsync(operatorEmail, "OperatorPassword123!");
+        await factory.AssignUserToRoleAsync(operatorEmail, IdentitySeedRoles.Administrator);
+        await factory.GrantAccessManagementAsync(operatorEmail);
+
+        var initialSuperAdmin = await FindUserAsync(setupClient, factory.SuperAdminEmail);
+        var secondSuperAdmin = await FindUserAsync(setupClient, secondSuperAdminEmail);
+
+        using var operatorClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(operatorClient, operatorEmail, "OperatorPassword123!");
+        var operatorToken = await GetAntiforgeryTokenAsync(operatorClient);
+
+        using var lockSecondSuperAdminResponse = await PostWithTokenAsync(
+            operatorClient,
+            $"/Admin/Users/{secondSuperAdmin.Id}/edit",
+            operatorToken,
+            new
+            {
+                email = secondSuperAdminEmail,
+                roleIds = new[] { superAdminRole.Id },
+                isLocked = true
+            });
+        Assert.Equal(HttpStatusCode.OK, lockSecondSuperAdminResponse.StatusCode);
+        var lockedSuperAdmin = await lockSecondSuperAdminResponse.Content.ReadFromJsonAsync<UserDto>();
+        Assert.NotNull(lockedSuperAdmin);
+        Assert.True(lockedSuperAdmin.IsLocked);
+
+        using var lockLastAvailableSuperAdminResponse = await PostWithTokenAsync(
+            operatorClient,
+            $"/Admin/Users/{initialSuperAdmin.Id}/edit",
+            operatorToken,
+            new
+            {
+                email = factory.SuperAdminEmail,
+                roleIds = new[] { superAdminRole.Id },
+                isLocked = true
+            });
+        Assert.Equal(HttpStatusCode.Conflict, lockLastAvailableSuperAdminResponse.StatusCode);
+
+        using var removeLastAvailableSuperAdminResponse = await PostWithTokenAsync(
+            operatorClient,
+            $"/Admin/Users/{initialSuperAdmin.Id}/edit",
+            operatorToken,
+            new
+            {
+                email = factory.SuperAdminEmail,
+                roleIds = Array.Empty<string>(),
+                isLocked = false
+            });
+        Assert.Equal(HttpStatusCode.Conflict, removeLastAvailableSuperAdminResponse.StatusCode);
+
+        using var deleteLastAvailableSuperAdminResponse = await PostWithTokenAsync(
+            operatorClient,
+            $"/Admin/Users/{initialSuperAdmin.Id}/delete",
+            operatorToken);
+        Assert.Equal(HttpStatusCode.Conflict, deleteLastAvailableSuperAdminResponse.StatusCode);
+
+        var stillAvailableSuperAdmin = await FindUserAsync(operatorClient, factory.SuperAdminEmail);
+        var stillLockedSuperAdmin = await FindUserAsync(operatorClient, secondSuperAdminEmail);
+        Assert.False(stillAvailableSuperAdmin.IsLocked);
+        Assert.True(stillLockedSuperAdmin.IsLocked);
+
+        using var unlockSecondSuperAdminResponse = await PostWithTokenAsync(
+            operatorClient,
+            $"/Admin/Users/{secondSuperAdmin.Id}/edit",
+            operatorToken,
+            new
+            {
+                email = secondSuperAdminEmail,
+                roleIds = new[] { superAdminRole.Id },
+                isLocked = false
+            });
+        Assert.Equal(HttpStatusCode.OK, unlockSecondSuperAdminResponse.StatusCode);
+        var unlockedSuperAdmin = await unlockSecondSuperAdminResponse.Content.ReadFromJsonAsync<UserDto>();
+        Assert.NotNull(unlockedSuperAdmin);
+        Assert.False(unlockedSuperAdmin.IsLocked);
+        Assert.Contains(IdentitySeedRoles.SuperAdmin, unlockedSuperAdmin.RoleNames);
+
+        var operatorAccount = await FindUserAsync(operatorClient, operatorEmail);
+        Assert.Equal(administratorRole.Name, Assert.Single(operatorAccount.RoleNames));
+    }
+
+    [Fact]
     public async Task Authenticated_user_can_change_password_with_current_password_and_antiforgery_token()
     {
         using var factory = new UserManagementWebApplicationFactory();
@@ -1236,6 +1339,14 @@ public sealed class UserManagementEndpointTests
         using var response = await client.GetAsync("/Admin/Users");
         response.EnsureSuccessStatusCode();
         return ExtractAntiforgeryToken(await response.Content.ReadAsStringAsync());
+    }
+
+    private static async Task<UserDto> FindUserAsync(HttpClient client, string email)
+    {
+        var result = await client.GetFromJsonAsync<UserSearchDto>(
+            $"/Admin/Users/search?search={Uri.EscapeDataString(email)}");
+        Assert.NotNull(result);
+        return Assert.Single(result.Items);
     }
 
     private static string ExtractAntiforgeryToken(string html)
