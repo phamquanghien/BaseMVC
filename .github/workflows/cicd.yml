@@ -1,0 +1,133 @@
+name: BaseMVC CI/CD
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore BaseMVC.sln
+
+      - name: Build solution
+        run: dotnet build BaseMVC.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: >-
+          dotnet test tests/BaseMVC.Infrastructure.Tests/BaseMVC.Infrastructure.Tests.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+
+      - name: Publish web application
+        run: >-
+          dotnet publish src/BaseMVC.WebUI/BaseMVC.WebUI.csproj
+          --configuration Release
+          --no-build
+          --no-restore
+          --output "${{ runner.temp }}/publish"
+
+      - name: Upload publish artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: basemvc-publish
+          path: ${{ runner.temp }}/publish/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy to IIS over FTP
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: basemvc-production-deploy
+      cancel-in-progress: false
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_PORT: ${{ secrets.FTP_PORT || '21' }}
+      FTP_TARGET_DIR: ${{ secrets.FTP_TARGET_DIR || '/httpdocs/' }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+    steps:
+      - name: Download publish artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: basemvc-publish
+          path: ${{ runner.temp }}/publish/
+
+      - name: Create IIS maintenance page
+        run: |
+          cat > "$RUNNER_TEMP/app_offline.htm" <<'EOF'
+          <!DOCTYPE html>
+          <html lang="vi">
+          <head><meta charset="utf-8"><title>Đang bảo trì</title></head>
+          <body><h1>Hệ thống đang cập nhật</h1><p>Vui lòng thử lại sau ít phút.</p></body>
+          </html>
+          EOF
+
+      - name: Stop IIS application before deployment
+        id: maintenance-mode
+        run: |
+          set -euo pipefail
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --ftp-pasv \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            --upload-file "$RUNNER_TEMP/app_offline.htm" \
+            "ftp://$FTP_SERVER:$FTP_PORT${FTP_TARGET_DIR%/}/"
+          sleep 10
+
+      - name: Deploy application files over FTP
+        if: steps.maintenance-mode.outcome == 'success'
+        uses: SamKirkland/FTP-Deploy-Action@8e83cea8672e3fbcbb9fdafff34debf6ae4c5f65
+        with:
+          server: ${{ env.FTP_SERVER }}
+          username: ${{ env.FTP_USERNAME }}
+          password: ${{ env.FTP_PASSWORD }}
+          port: ${{ env.FTP_PORT }}
+          protocol: ftp
+          local-dir: ${{ runner.temp }}/publish/
+          server-dir: ${{ env.FTP_TARGET_DIR }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/App_Data/**
+            **/*.db
+            **/*.db-shm
+            **/*.db-wal
+            **/app_offline.htm
+
+      - name: Disable IIS maintenance mode over FTP
+        if: always() && steps.maintenance-mode.outcome == 'success'
+        run: |
+          set -euo pipefail
+          curl \
+            --fail \
+            --show-error \
+            --silent \
+            --ftp-pasv \
+            --user "$FTP_USERNAME:$FTP_PASSWORD" \
+            --quote "CWD ${FTP_TARGET_DIR%/}" \
+            --quote "DELE app_offline.htm" \
+            "ftp://$FTP_SERVER:$FTP_PORT/"

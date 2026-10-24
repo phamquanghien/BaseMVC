@@ -20,6 +20,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\BaseMVC.Infrastructure\BaseMVC.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\BaseMVC.WebUI\BaseMVC.WebUI.csproj" />
   </ItemGroup>

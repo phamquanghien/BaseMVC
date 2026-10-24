@@ -34,6 +34,51 @@ endpoint that also checks connectivity to the configured SQLite database.
 Both endpoints return a plain-text health status without exposing dependency
 details.
 
+## GitHub Actions deployment
+
+The workflow in `.github/workflows/cicd.yml` restores, builds, and tests the
+solution for pull requests and pushes to `master`. A successful push to
+`master` also publishes `BaseMVC.WebUI` and deploys the publish output to the
+IIS site's `/httpdocs/` directory over FTP. The deployment action is pinned to
+a commit and does not perform a clean-slate deletion.
+
+Before the first deployment, add these repository or `production` environment
+Actions secrets in GitHub:
+
+- `FTP_SERVER`: FTP hostname provided by the host, without a URL scheme.
+- `FTP_USERNAME`: a dedicated deployment account restricted to the site's
+  `/httpdocs/` directory.
+- `FTP_PASSWORD`: that account's password.
+- Optional `FTP_PORT`: FTP port (defaults to `21`).
+- Optional `FTP_TARGET_DIR`: FTP path for the IIS site (defaults to
+  `/httpdocs/`).
+
+After the FTP secrets are configured, each successful push to `master`
+deploys automatically. Pull requests run CI but never deploy. A missing or
+invalid FTP secret causes the deploy job to fail instead of silently skipping
+deployment.
+
+Plain FTP does not encrypt credentials or transferred files. Use it only if
+the hosting provider does not support SFTP or FTPS. Create a dedicated FTP
+account with access restricted to the deployment directory, use a unique
+strong password, and rotate it periodically. Do not reuse the hosting control
+panel password. Prefer SFTP or FTPS with a valid certificate whenever the host
+can provide it.
+
+The workflow intentionally excludes `App_Data/` and SQLite database files so
+deployments do not overwrite runtime data or backups. Keep production
+connection strings, `SeedAdmin` credentials, SMTP credentials, and trusted
+proxy IPs in the hosting provider's environment configuration or secret store;
+do not add them to this repository or the workflow. Confirm the IIS site is
+configured for ASP.NET Core on .NET 10 and has writable persistent storage for
+the SQLite database and backup directory before enabling production deploys.
+Before replacing assemblies, it uploads `app_offline.htm` as a separate FTP
+operation and waits for IIS to release the running application's file locks.
+The marker is excluded from the publish sync and is removed after deployment,
+including when deployment fails. The cleanup explicitly changes to
+`FTP_TARGET_DIR` before deleting the marker, because FTP quote commands run
+before curl changes to the URL path.
+
 ## Authentication
 
 Sign in at `/Account/Login` with an Identity account. The application does not
@@ -45,7 +90,8 @@ The application cookie is always marked `Secure`, is `HttpOnly`, and uses
 `SameSite=Lax`. It has a 14-day sliding expiration and is only issued over
 HTTPS; the application redirects HTTP requests to HTTPS. When TLS terminates
 at a reverse proxy, configure trusted forwarded headers before deploying so
-the application recognizes the original HTTPS scheme.
+the application recognizes the original HTTPS scheme and does not redirect
+already-secure requests back to HTTPS.
 
 The cookie handler checks the account's current lockout state on each
 authenticated request. Locking an account therefore invalidates its existing
@@ -83,10 +129,30 @@ seconds. Tune the limits through configuration keys
 `RateLimits__Account__PasswordResetPermitLimit`, and
 `RateLimits__Account__PasswordResetWindowSeconds`. Limits must be positive
 integers; permit limits are capped at 1000 and windows at 86400 seconds.
-Rejected requests receive HTTP 429 and a `Retry-After` header. When hosting
-behind a reverse proxy, configure ASP.NET Core Forwarded Headers with only
-trusted proxies/networks so the remote IP reflects the actual client; do not
-trust arbitrary forwarded headers.
+Rejected requests receive HTTP 429 and a `Retry-After` header. Forwarded
+`X-Forwarded-For` and `X-Forwarded-Proto` headers are processed before HTTPS
+redirection, and only from explicitly configured proxy IP addresses. Configure
+the IP address the application sees as the direct connection peer, not the
+public IP addresses of clients. For example, if the reverse proxy connects from
+`10.0.0.10`, set `ForwardedHeaders__KnownProxies__0=10.0.0.10`. Add additional
+trusted direct proxies with indexed keys such as
+`ForwardedHeaders__KnownProxies__1=10.0.0.11`.
+
+The application processes at most one proxy hop. Configure the proxy directly
+in front of the application to remove client-supplied `X-Forwarded-For` and
+`X-Forwarded-Proto` values and set them to the actual client IP and original
+request scheme. Do not trust arbitrary forwarded headers or add client IP
+addresses to the proxy allowlist. If an untrusted proxy connects to the
+application, its forwarded headers are ignored. If no trusted proxy IPs are
+configured, forwarded-header processing is disabled; HTTPS redirection and
+rate limiting then use the connection information seen by the application.
+
+For TLS termination at a proxy, configure it to forward the original scheme as
+`X-Forwarded-Proto: https` for HTTPS requests and ensure its direct IP is in the
+allowlist. This allows the application to recognize HTTPS before its redirect
+middleware runs and avoids redirect loops. Keep the application unreachable
+from untrusted networks where possible; the forwarded-header allowlist is not
+a substitute for network-level access controls.
 
 ## Dynamic permissions
 

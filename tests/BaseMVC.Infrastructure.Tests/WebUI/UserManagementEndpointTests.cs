@@ -11,8 +11,11 @@ using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Auditing;
 using BaseMVC.WebUI.HealthChecks;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -65,6 +68,263 @@ public sealed class UserManagementEndpointTests
         Assert.Contains("; secure", applicationCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("; httponly", applicationCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("; samesite=lax", applicationCookie, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Forwarded_headers_trust_only_configured_proxy_addresses()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            knownProxyAddresses: ["192.0.2.10", "192.0.2.11"]);
+        var forwardedHeadersOptions = factory.Services
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>()
+            .Value;
+
+        Assert.Equal(
+            ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            forwardedHeadersOptions.ForwardedHeaders);
+        Assert.Equal(1, forwardedHeadersOptions.ForwardLimit);
+        Assert.Equal(
+            ["192.0.2.10", "192.0.2.11"],
+            forwardedHeadersOptions.KnownProxies.Select(address => address.ToString()));
+        Assert.Empty(forwardedHeadersOptions.KnownIPNetworks);
+    }
+
+    [Fact]
+    public void Forwarded_headers_trust_no_proxies_when_proxy_list_is_empty()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        var forwardedHeadersOptions = factory.Services
+            .GetRequiredService<IOptions<ForwardedHeadersOptions>>()
+            .Value;
+
+        Assert.Equal(ForwardedHeaders.None, forwardedHeadersOptions.ForwardedHeaders);
+        Assert.Empty(forwardedHeadersOptions.KnownProxies);
+        Assert.Empty(forwardedHeadersOptions.KnownIPNetworks);
+    }
+
+    [Fact]
+    public void Invalid_forwarded_proxy_address_fails_application_startup_with_configuration_path()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            knownProxyAddresses: ["192.0.2.10", "not-an-ip"]);
+
+        var exception = Assert.Throws<InvalidOperationException>(() => _ = factory.Services);
+
+        Assert.Contains(
+            "ForwardedHeaders:KnownProxies:1 must be a valid IP address.",
+            exception.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Forwarded_headers_are_applied_only_for_configured_proxy_addresses()
+    {
+        static async Task<(string Scheme, IPAddress? RemoteIp)> SendThroughProxyAsync(
+            IPAddress remoteIp,
+            IPAddress? trustedProxyAddress)
+        {
+            using var host = await new HostBuilder()
+                .ConfigureWebHost(webHost => webHost
+                    .UseTestServer()
+                    .ConfigureServices(services =>
+                        services.Configure<ForwardedHeadersOptions>(options =>
+                        {
+                            options.KnownProxies.Clear();
+                            options.KnownIPNetworks.Clear();
+                            if (trustedProxyAddress is not null)
+                            {
+                                options.ForwardedHeaders =
+                                    ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                                options.KnownProxies.Add(trustedProxyAddress);
+                            }
+                            else
+                            {
+                                options.ForwardedHeaders = ForwardedHeaders.None;
+                            }
+                        }))
+                    .Configure(app =>
+                    {
+                        app.UseForwardedHeaders();
+                        app.Run(_ => Task.CompletedTask);
+                    }))
+                .StartAsync();
+            var server = host.GetTestServer();
+
+            var context = await server.SendAsync(httpContext =>
+            {
+                httpContext.Connection.RemoteIpAddress = remoteIp;
+                httpContext.Request.Headers["X-Forwarded-For"] = "198.51.100.25";
+                httpContext.Request.Headers["X-Forwarded-Proto"] = "https";
+            });
+            return (context.Request.Scheme, context.Connection.RemoteIpAddress);
+        }
+
+        var trustedResult = await SendThroughProxyAsync(
+            IPAddress.Parse("192.0.2.10"),
+            IPAddress.Parse("192.0.2.10"));
+        Assert.Equal("https", trustedResult.Scheme);
+        Assert.Equal(IPAddress.Parse("198.51.100.25"), trustedResult.RemoteIp);
+
+        var untrustedResult = await SendThroughProxyAsync(
+            IPAddress.Parse("192.0.2.20"),
+            IPAddress.Parse("192.0.2.10"));
+        Assert.Equal("http", untrustedResult.Scheme);
+        Assert.Equal(IPAddress.Parse("192.0.2.20"), untrustedResult.RemoteIp);
+
+        var noTrustedProxiesResult = await SendThroughProxyAsync(
+            IPAddress.Parse("192.0.2.10"),
+            trustedProxyAddress: null);
+        Assert.Equal("http", noTrustedProxiesResult.Scheme);
+        Assert.Equal(IPAddress.Parse("192.0.2.10"), noTrustedProxiesResult.RemoteIp);
+    }
+
+    [Fact]
+    public async Task Login_rate_limit_partitions_by_forwarded_client_ip_from_trusted_proxy()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            loginPermitLimit: 1,
+            knownProxyAddresses: ["127.0.0.1", "::1"]);
+        using var firstClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        using var sameClientIpClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        using var differentClientIpClient = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var firstClientToken = await GetPageTokenAsync(firstClient, "/Account/Login");
+        using var firstLoginResponse = await PostLoginAsync(
+            firstClient,
+            firstClientToken,
+            "unknown-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.10");
+        Assert.Equal(HttpStatusCode.OK, firstLoginResponse.StatusCode);
+
+        var sameClientIpToken = await GetPageTokenAsync(sameClientIpClient, "/Account/Login");
+        using var limitedLoginResponse = await PostLoginAsync(
+            sameClientIpClient,
+            sameClientIpToken,
+            "unknown-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.10");
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedLoginResponse.StatusCode);
+
+        var differentClientIpToken = await GetPageTokenAsync(differentClientIpClient, "/Account/Login");
+        using var differentClientIpResponse = await PostLoginAsync(
+            differentClientIpClient,
+            differentClientIpToken,
+            "unknown-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.11");
+        Assert.Equal(HttpStatusCode.OK, differentClientIpResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Trusted_proxy_forwarding_precedes_https_redirect_and_login_rate_limiting()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            loginPermitLimit: 1,
+            knownProxyAddresses: ["127.0.0.1"],
+            remoteIpAddress: IPAddress.Loopback,
+            enableHttpsRedirection: true);
+        using var firstClient = CreateHttpClient(factory);
+        using var sameClientIpClient = CreateHttpClient(factory);
+        using var differentClientIpClient = CreateHttpClient(factory);
+
+        using var redirectResponse = await firstClient.GetAsync("/health/live");
+        Assert.Equal(HttpStatusCode.TemporaryRedirect, redirectResponse.StatusCode);
+        Assert.Equal(
+            "https://localhost/health/live",
+            redirectResponse.Headers.Location?.ToString());
+
+        using var untrustedFactory = new UserManagementWebApplicationFactory(
+            knownProxyAddresses: ["127.0.0.1"],
+            remoteIpAddress: IPAddress.Parse("192.0.2.20"),
+            enableHttpsRedirection: true);
+        using var untrustedClient = CreateHttpClient(untrustedFactory);
+        using var spoofedProtoRequest = new HttpRequestMessage(HttpMethod.Get, "/health/live");
+        spoofedProtoRequest.Headers.Add("X-Forwarded-Proto", "https");
+        using var untrustedRedirectResponse = await untrustedClient.SendAsync(spoofedProtoRequest);
+        Assert.Equal(HttpStatusCode.TemporaryRedirect, untrustedRedirectResponse.StatusCode);
+
+        var firstToken = await GetPageTokenAsync(
+            firstClient,
+            "/Account/Login",
+            forwardedClientIp: "198.51.100.10",
+            forwardedProto: "https");
+        using var firstResponse = await PostLoginAsync(
+            firstClient,
+            firstToken,
+            "unknown-combined-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.10",
+            forwardedProto: "https");
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        var sameClientToken = await GetPageTokenAsync(
+            sameClientIpClient,
+            "/Account/Login",
+            forwardedClientIp: "198.51.100.10",
+            forwardedProto: "https");
+        using var limitedResponse = await PostLoginAsync(
+            sameClientIpClient,
+            sameClientToken,
+            "unknown-combined-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.10",
+            forwardedProto: "https");
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedResponse.StatusCode);
+
+        var differentClientToken = await GetPageTokenAsync(
+            differentClientIpClient,
+            "/Account/Login",
+            forwardedClientIp: "198.51.100.11",
+            forwardedProto: "https");
+        using var differentClientResponse = await PostLoginAsync(
+            differentClientIpClient,
+            differentClientToken,
+            "unknown-combined-rate-limit-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.11",
+            forwardedProto: "https");
+        Assert.Equal(HttpStatusCode.OK, differentClientResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Untrusted_client_cannot_spoof_forwarded_ip_to_bypass_login_rate_limit()
+    {
+        using var factory = new UserManagementWebApplicationFactory(
+            loginPermitLimit: 1,
+            knownProxyAddresses: ["192.0.2.10"],
+            remoteIpAddress: IPAddress.Parse("192.0.2.20"));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var firstToken = await GetPageTokenAsync(client, "/Account/Login");
+        using var firstResponse = await PostLoginAsync(
+            client,
+            firstToken,
+            "unknown-spoofed-ip-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.10");
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+
+        var spoofedToken = await GetPageTokenAsync(client, "/Account/Login");
+        using var spoofedResponse = await PostLoginAsync(
+            client,
+            spoofedToken,
+            "unknown-spoofed-ip-user@example.test",
+            "IncorrectPassword123!",
+            forwardedClientIp: "198.51.100.11");
+        Assert.Equal(HttpStatusCode.TooManyRequests, spoofedResponse.StatusCode);
     }
 
     [Fact]
@@ -1324,27 +1584,67 @@ public sealed class UserManagementEndpointTests
             StringComparison.Ordinal);
     }
 
-    private static async Task<string> GetPageTokenAsync(HttpClient client, string path)
+    private static async Task<string> GetPageTokenAsync(
+        HttpClient client,
+        string path,
+        string? forwardedClientIp = null,
+        string? forwardedProto = null)
     {
-        using var response = await client.GetAsync(path);
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
+        AddForwardedHeaders(request, forwardedClientIp, forwardedProto);
+        using var response = await client.SendAsync(request);
         response.EnsureSuccessStatusCode();
         return ExtractAntiforgeryToken(await response.Content.ReadAsStringAsync());
     }
 
-    private static Task<HttpResponseMessage> PostLoginAsync(
+    private static HttpClient CreateHttpClient(UserManagementWebApplicationFactory factory)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        client.BaseAddress = new Uri("http://localhost");
+        return client;
+    }
+
+    private static async Task<HttpResponseMessage> PostLoginAsync(
         HttpClient client,
         string antiforgeryToken,
         string email,
-        string password) =>
-        client.PostAsync(
-            "/Account/Login",
-            new FormUrlEncodedContent(new Dictionary<string, string>
+        string password,
+        string? forwardedClientIp = null,
+        string? forwardedProto = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Account/Login")
+        {
+            Content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = antiforgeryToken,
                 ["Email"] = email,
                 ["Password"] = password,
                 ["RememberMe"] = "false"
-            }));
+            })
+        };
+        AddForwardedHeaders(request, forwardedClientIp, forwardedProto);
+
+        return await client.SendAsync(request);
+    }
+
+    private static void AddForwardedHeaders(
+        HttpRequestMessage request,
+        string? forwardedClientIp,
+        string? forwardedProto)
+    {
+        if (forwardedClientIp is not null)
+        {
+            request.Headers.Add("X-Forwarded-For", forwardedClientIp);
+        }
+
+        if (forwardedProto is not null)
+        {
+            request.Headers.Add("X-Forwarded-Proto", forwardedProto);
+        }
+    }
 
     private static void AssertLocalHomeRedirect(HttpClient client, HttpResponseMessage response)
     {
@@ -1970,6 +2270,7 @@ public sealed class UserManagementEndpointTests
     {
         private readonly SqliteConnection _connection = new("Data Source=:memory:");
         private readonly FakeEmailSender _emailSender = new();
+        private readonly bool _enableHttpsRedirection;
 
         public string SuperAdminEmail { get; } = "integration-superadmin@example.test";
 
@@ -1985,12 +2286,18 @@ public sealed class UserManagementEndpointTests
             int loginPermitLimit = 5,
             TimeSpan? resetTokenLifespan = null,
             TimeSpan? lockoutTimeSpan = null,
-            bool enforceCookieSecurity = false)
+            bool enforceCookieSecurity = false,
+            string[]? knownProxyAddresses = null,
+            IPAddress? remoteIpAddress = null,
+            bool enableHttpsRedirection = false)
         {
             LoginPermitLimit = loginPermitLimit;
             ResetTokenLifespan = resetTokenLifespan;
             LockoutTimeSpan = lockoutTimeSpan;
             EnforceCookieSecurity = enforceCookieSecurity;
+            KnownProxyAddresses = knownProxyAddresses ?? [];
+            RemoteIpAddress = remoteIpAddress;
+            _enableHttpsRedirection = enableHttpsRedirection;
             _connection.Open();
         }
 
@@ -2001,6 +2308,10 @@ public sealed class UserManagementEndpointTests
         private TimeSpan? LockoutTimeSpan { get; }
 
         private bool EnforceCookieSecurity { get; }
+
+        private string[] KnownProxyAddresses { get; }
+
+        private IPAddress? RemoteIpAddress { get; }
 
         public async Task GrantAccessManagementAsync(string email)
         {
@@ -2115,7 +2426,7 @@ public sealed class UserManagementEndpointTests
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                var settings = new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:DefaultConnection"] = "Data Source=:memory:",
                     ["Email:SmtpHost"] = "localhost",
@@ -2127,7 +2438,13 @@ public sealed class UserManagementEndpointTests
                     ["SeedAdmin:Password"] = SuperAdminPassword,
                     ["RateLimits:Account:LoginPermitLimit"] = LoginPermitLimit.ToString(
                         System.Globalization.CultureInfo.InvariantCulture)
-                });
+                };
+                for (var index = 0; index < KnownProxyAddresses.Length; index++)
+                {
+                    settings[$"ForwardedHeaders:KnownProxies:{index}"] = KnownProxyAddresses[index];
+                }
+
+                configuration.AddInMemoryCollection(settings);
             });
 
             builder.ConfigureTestServices(services =>
@@ -2145,8 +2462,18 @@ public sealed class UserManagementEndpointTests
                         options.Registrations.Remove(registration);
                     }
                 });
+                if (_enableHttpsRedirection)
+                {
+                    services.Configure<HttpsRedirectionOptions>(options => options.HttpsPort = 443);
+                }
                 services.RemoveAll<IEmailSender>();
                 services.AddSingleton<IEmailSender>(_emailSender);
+                if (RemoteIpAddress is not null)
+                {
+                    services.AddSingleton<IStartupFilter>(
+                        new FixedRemoteIpStartupFilter(RemoteIpAddress));
+                }
+
                 if (!EnforceCookieSecurity)
                 {
                     services.PostConfigure<CookieAuthenticationOptions>(
@@ -2206,6 +2533,20 @@ public sealed class UserManagementEndpointTests
 
                 return Task.CompletedTask;
             }
+        }
+
+        private sealed class FixedRemoteIpStartupFilter(IPAddress remoteIpAddress) : IStartupFilter
+        {
+            public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) =>
+                app =>
+                {
+                    app.Use(async (context, nextMiddleware) =>
+                    {
+                        context.Connection.RemoteIpAddress = remoteIpAddress;
+                        await nextMiddleware();
+                    });
+                    next(app);
+                };
         }
     }
 }

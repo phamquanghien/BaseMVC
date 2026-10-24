@@ -5,16 +5,43 @@ using BaseMVC.WebUI.Auditing;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.HealthChecks;
 using BaseMVC.WebUI.Security;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.Net;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
 builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    var knownProxyAddresses = builder.Configuration
+        .GetSection("ForwardedHeaders:KnownProxies")
+        .Get<string[]>() ?? [];
+
+    options.ForwardedHeaders = knownProxyAddresses.Length == 0
+        ? ForwardedHeaders.None
+        : ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownProxies.Clear();
+    options.KnownIPNetworks.Clear();
+    for (var index = 0; index < knownProxyAddresses.Length; index++)
+    {
+        if (!IPAddress.TryParse(knownProxyAddresses[index], out var knownProxy))
+        {
+            throw new InvalidOperationException(
+                $"ForwardedHeaders:KnownProxies:{index} must be a valid IP address.");
+        }
+
+        options.KnownProxies.Add(knownProxy);
+    }
+});
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddHostedService<AuditLogRetentionService>();
@@ -101,12 +128,15 @@ if (builder.Configuration.GetSection("SqliteBackup").Get<SqliteBackupOptions>()?
 }
 
 var app = builder.Build();
+_ = app.Services.GetRequiredService<IOptions<ForwardedHeadersOptions>>().Value;
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var identitySeeder = scope.ServiceProvider.GetRequiredService<IdentitySeeder>();
     await identitySeeder.SeedAsync();
 }
+
+app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
