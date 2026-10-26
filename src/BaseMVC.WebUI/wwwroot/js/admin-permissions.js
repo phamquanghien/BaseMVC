@@ -10,9 +10,7 @@
   const groups = manager.querySelector("[data-permission-groups]");
   const cancelButton = manager.querySelector("[data-permission-cancel]");
   const saveButton = manager.querySelector("[data-permission-save]");
-  const tokenInput = document.querySelector(
-    '#permission-antiforgery input[name="__RequestVerificationToken"]',
-  );
+  const adminApi = window.BaseAdmin;
   const config = {
     rolesUrl: manager.dataset.rolesUrl,
     permissionUrlTemplate: manager.dataset.permissionUrlTemplate,
@@ -29,7 +27,7 @@
     !(groups instanceof HTMLElement) ||
     !(cancelButton instanceof HTMLButtonElement) ||
     (config.canManage && !(saveButton instanceof HTMLButtonElement)) ||
-    !(tokenInput instanceof HTMLInputElement) ||
+    !adminApi ||
     [config.rolesUrl, config.permissionUrlTemplate, config.updateUrlTemplate].some(
       (value) => !value,
     )
@@ -40,52 +38,10 @@
   let selectedRoleId = null;
   let isSaving = false;
 
-  const showError = (element, message) => {
-    element.textContent = message;
-    element.classList.remove("hidden");
-  };
-
-  const hideError = (element) => {
-    element.textContent = "";
-    element.classList.add("hidden");
-  };
-
-  const getErrorMessage = async (response) => {
-    if ((response.headers.get("content-type") ?? "").includes("application/json")) {
-      const payload = await response.json();
-      if (Array.isArray(payload.errors) && payload.errors.length > 0) {
-        return payload.errors.join(" ");
-      }
-      if (payload.errors && typeof payload.errors === "object") {
-        const messages = Object.values(payload.errors).flatMap((value) =>
-          Array.isArray(value) ? value : [],
-        );
-        if (messages.length > 0) return messages.join(" ");
-      }
-      if (typeof payload.title === "string") return payload.title;
-    }
-    return `Yêu cầu không thành công (HTTP ${response.status}).`;
-  };
-
-  const request = async (url, options = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.method && options.method !== "GET"
-          ? { RequestVerificationToken: tokenInput.value }
-          : {}),
-        ...options.headers,
-      },
-    });
-    if (response.redirected) {
-      throw new Error("Phiên đăng nhập không còn hợp lệ hoặc bạn không đủ quyền thao tác.");
-    }
-    if (!response.ok) throw new Error(await getErrorMessage(response));
-    return response.status === 204 ? null : response.json();
-  };
+  const showError = adminApi?.showError;
+  const hideError = adminApi?.hideError;
+  const request = (url, options = {}) =>
+    adminApi.request(url, options, "#permission-antiforgery");
 
   const permissionUrl = (template, roleId) =>
     template.replace("__roleId__", encodeURIComponent(roleId));

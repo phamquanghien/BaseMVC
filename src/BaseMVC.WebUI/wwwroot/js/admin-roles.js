@@ -19,9 +19,7 @@
   const submitButton = manager.querySelector("[data-role-submit]");
   const cancelButton = manager.querySelector("[data-role-cancel]");
   const createButton = manager.querySelector("[data-role-create]");
-  const tokenInput = document.querySelector(
-    '#role-antiforgery input[name="__RequestVerificationToken"]',
-  );
+  const adminApi = window.BaseAdmin;
 
   if (
     !(rows instanceof HTMLElement) ||
@@ -40,7 +38,7 @@
     !(nameInput instanceof HTMLInputElement) ||
     !(submitButton instanceof HTMLButtonElement) ||
     !(cancelButton instanceof HTMLButtonElement) ||
-    !(tokenInput instanceof HTMLInputElement)
+    !adminApi
   ) {
     throw new Error("Role manager markup is incomplete.");
   }
@@ -71,53 +69,9 @@
   let modalMode = "create";
   let isSaving = false;
 
-  const showError = (element, message) => {
-    element.textContent = message;
-    element.classList.remove("hidden");
-  };
-
-  const hideError = (element) => {
-    element.textContent = "";
-    element.classList.add("hidden");
-  };
-
-  const errorMessage = async (response) => {
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      const payload = await response.json();
-      if (Array.isArray(payload.errors) && payload.errors.length > 0) {
-        return payload.errors.join(" ");
-      }
-      if (payload.errors && typeof payload.errors === "object") {
-        const messages = Object.values(payload.errors).flatMap((value) =>
-          Array.isArray(value) ? value : [],
-        );
-        if (messages.length > 0) return messages.join(" ");
-      }
-      if (typeof payload.title === "string") return payload.title;
-    }
-    return `Yêu cầu không thành công (HTTP ${response.status}).`;
-  };
-
-  const request = async (url, options = {}) => {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        Accept: "application/json",
-        ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(options.method && options.method !== "GET"
-          ? { RequestVerificationToken: tokenInput.value }
-          : {}),
-        ...options.headers,
-      },
-      credentials: "same-origin",
-    });
-    if (response.redirected) {
-      throw new Error("Phiên đăng nhập không còn hợp lệ hoặc bạn không đủ quyền thao tác.");
-    }
-    if (!response.ok) throw new Error(await errorMessage(response));
-    return response.status === 204 ? null : response.json();
-  };
+  const showError = adminApi?.showError;
+  const hideError = adminApi?.hideError;
+  const request = (url, options = {}) => adminApi.request(url, options, "#role-antiforgery");
 
   const makeCell = (text, className = "") => {
     const cell = document.createElement("td");

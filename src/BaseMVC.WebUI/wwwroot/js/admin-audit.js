@@ -13,6 +13,7 @@
   const nextButton = manager.querySelector("[data-audit-next]");
   const errorBanner = manager.querySelector("[data-audit-error]");
   const searchUrl = manager.dataset.searchUrl;
+  const adminApi = window.BaseAdmin;
 
   if (
     !(rows instanceof HTMLElement) ||
@@ -25,6 +26,7 @@
     !(previousButton instanceof HTMLButtonElement) ||
     !(nextButton instanceof HTMLButtonElement) ||
     !(errorBanner instanceof HTMLElement) ||
+    !adminApi ||
     !searchUrl
   ) {
     throw new Error("Audit log markup or endpoint configuration is incomplete.");
@@ -57,15 +59,8 @@
   let searchTimer;
   let activeRequest;
 
-  const showError = (message) => {
-    errorBanner.textContent = message;
-    errorBanner.classList.remove("hidden");
-  };
-
-  const hideError = () => {
-    errorBanner.textContent = "";
-    errorBanner.classList.add("hidden");
-  };
+  const showError = (message) => adminApi.showError(errorBanner, message);
+  const hideError = () => adminApi.hideError(errorBanner);
 
   const renderRows = (items) => {
     rows.replaceChildren();
@@ -118,23 +113,7 @@
     url.searchParams.set("pageSize", pageSizeSelect.value);
 
     try {
-      const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-        credentials: "same-origin",
-        signal: activeRequest.signal,
-      });
-      if (response.redirected) {
-        throw new Error("Phiên đăng nhập không còn hợp lệ hoặc bạn không đủ quyền xem nhật ký.");
-      }
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        const message = Array.isArray(payload?.errors)
-          ? payload.errors.join(" ")
-          : `Yêu cầu không thành công (HTTP ${response.status}).`;
-        throw new Error(message);
-      }
-
-      const result = await response.json();
+      const result = await adminApi.request(url, { signal: activeRequest.signal });
       page = result.page;
       totalPages = result.totalPages;
       renderRows(result.items);
