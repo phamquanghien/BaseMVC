@@ -1,4 +1,6 @@
 using BaseMVC.Infrastructure.Identity;
+using BaseMVC.Application;
+using BaseMVC.Application.Auditing;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Auditing;
@@ -17,6 +19,9 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.AddApplication();
+        services.AddScoped<IAuditLogReadStore, AuditLogReadStore>();
+
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))

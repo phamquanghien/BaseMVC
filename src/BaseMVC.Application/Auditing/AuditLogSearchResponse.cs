@@ -1,4 +1,4 @@
-namespace BaseMVC.WebUI.Models.Audit;
+namespace BaseMVC.Application.Auditing;
 
 public sealed record AuditLogSearchResponse(
     IReadOnlyList<AuditLogListItem> Items,
