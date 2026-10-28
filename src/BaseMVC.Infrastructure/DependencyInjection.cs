@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleManagementService, RoleManagementService>();
         services.AddScoped<IPermissionManagementService, PermissionManagementService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
+        services.AddScoped<IAccountPasswordService, AccountPasswordService>();
 
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 

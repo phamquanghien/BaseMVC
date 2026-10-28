@@ -1,4 +1,5 @@
 using BaseMVC.Infrastructure;
+using BaseMVC.Application.Accounts;
 using BaseMVC.Infrastructure.Identity;
 using BaseMVC.WebUI.SqliteBackups;
 using BaseMVC.WebUI.Auditing;
@@ -44,6 +45,8 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection("Email"));
 builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+builder.Services.AddSingleton<IPasswordResetEmailSender>(serviceProvider =>
+    serviceProvider.GetRequiredService<IEmailSender>());
 builder.Services.AddHostedService<AuditLogRetentionService>();
 builder.Services
     .AddOptions<SqliteBackupOptions>()

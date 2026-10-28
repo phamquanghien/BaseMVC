@@ -1,8 +1,6 @@
 using BaseMVC.Application.Accounts;
 using MediatR;
-using BaseMVC.Infrastructure.Auditing;
 using BaseMVC.Infrastructure.Identity;
-using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.Models.Account;
 using BaseMVC.WebUI.Security;
@@ -16,11 +14,7 @@ namespace BaseMVC.WebUI.Controllers;
 [Route("[controller]/[action]")]
 public sealed class AccountController(
     ISender sender,
-    SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
-    ApplicationDbContext dbContext,
-    IAuditLogWriter auditLogWriter,
-    IEmailSender emailSender,
     IOptions<EmailOptions> emailOptions,
     ILogger<AccountController> logger) : Controller
 {
@@ -96,46 +90,23 @@ public sealed class AccountController(
             return View(model);
         }
 
-        var user = await userManager.FindByEmailAsync(model.Email.Trim());
-        if (user is null || !await userManager.IsEmailConfirmedAsync(user))
+        var preparation = await sender.Send(new PreparePasswordResetCommand(model.Email), cancellationToken);
+        if (!preparation.HasConfirmedUser)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.PasswordResetRequested,
-                AuditOutcome.Accepted,
-                cancellationToken: cancellationToken);
             return View("ForgotPasswordConfirmation");
         }
 
-        await auditLogWriter.WriteAsync(
-            AuditEventType.PasswordResetRequested,
-            AuditOutcome.Accepted,
-            targetUserId: user.Id,
-            cancellationToken: cancellationToken);
-
-        var resetToken = await userManager.GeneratePasswordResetTokenAsync(user);
         var callbackPath = Url.Action(
             nameof(ResetPassword),
             "Account",
-            new { email = user.Email, code = resetToken });
+            new { email = preparation.Email, code = preparation.Token });
         if (string.IsNullOrWhiteSpace(callbackPath))
         {
             throw new InvalidOperationException("Could not generate the password-reset callback path.");
         }
 
         var resetUrl = new Uri(publicBaseUri, callbackPath).AbsoluteUri;
-        try
-        {
-            await emailSender.SendPasswordResetAsync(user.Email!, resetUrl, cancellationToken);
-        }
-        catch (EmailDeliveryException exception)
-        {
-            logger.LogError(exception, "Password recovery email delivery failed.");
-            await auditLogWriter.WriteAsync(
-                AuditEventType.PasswordResetEmailDelivery,
-                AuditOutcome.Failed,
-                targetUserId: user.Id,
-                cancellationToken: cancellationToken);
-        }
+        await sender.Send(new DeliverPasswordResetEmailCommand(preparation.UserId!, preparation.Email!, resetUrl), cancellationToken);
 
         return View("ForgotPasswordConfirmation");
     }
@@ -168,26 +139,13 @@ public sealed class AccountController(
             return View(model);
         }
 
-        var user = await userManager.FindByEmailAsync(model.Email);
-        if (user is null)
+        var result = await sender.Send(new ResetPasswordCommand(model.Email, model.Code, model.Password), cancellationToken);
+        if (!result.Succeeded && result.Errors.Count == 0)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.PasswordResetCompleted,
-                AuditOutcome.Failed,
-                cancellationToken: cancellationToken);
             return View("ResetPasswordInvalid");
         }
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var result = await userManager.ResetPasswordAsync(user, model.Code, model.Password);
         if (!result.Succeeded)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.PasswordResetCompleted,
-                AuditOutcome.Failed,
-                targetUserId: user.Id,
-                cancellationToken: cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
             foreach (var error in result.Errors)
             {
                 ModelState.AddModelError(
@@ -200,13 +158,6 @@ public sealed class AccountController(
             return View(model);
         }
 
-        await auditLogWriter.WriteAsync(
-            AuditEventType.PasswordResetCompleted,
-            AuditOutcome.Succeeded,
-            actorUserId: user.Id,
-            targetUserId: user.Id,
-            cancellationToken: cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
         return View("ResetPasswordConfirmation");
     }
 
@@ -228,26 +179,20 @@ public sealed class AccountController(
             return View(model);
         }
 
-        var user = await userManager.GetUserAsync(User);
-        if (user is null)
+        var userId = userManager.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
         {
             return Challenge();
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted);
-        var result = await userManager.ChangePasswordAsync(
-            user,
-            model.CurrentPassword,
-            model.NewPassword);
+        var result = await sender.Send(new ChangePasswordCommand(userId, model.CurrentPassword, model.NewPassword), HttpContext.RequestAborted);
         if (!result.Succeeded)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.PasswordChange,
-                AuditOutcome.Failed,
-                actorUserId: user.Id,
-                targetUserId: user.Id,
-                cancellationToken: HttpContext.RequestAborted);
-            await transaction.CommitAsync(HttpContext.RequestAborted);
+            if (result.Errors.Count == 0)
+            {
+                return Challenge();
+            }
+
             foreach (var error in result.Errors)
             {
                 ModelState.AddModelError(
@@ -260,14 +205,6 @@ public sealed class AccountController(
             return View(model);
         }
 
-        await auditLogWriter.WriteAsync(
-            AuditEventType.PasswordChange,
-            AuditOutcome.Succeeded,
-            actorUserId: user.Id,
-            targetUserId: user.Id,
-            cancellationToken: HttpContext.RequestAborted);
-        await transaction.CommitAsync(HttpContext.RequestAborted);
-        await signInManager.RefreshSignInAsync(user);
         TempData["PasswordChanged"] = true;
         return RedirectToAction(nameof(ChangePassword));
     }
