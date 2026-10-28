@@ -1,5 +1,7 @@
-using BaseMVC.Infrastructure.Identity;
+using BaseMVC.Application.Accounts;
+using MediatR;
 using BaseMVC.Infrastructure.Auditing;
+using BaseMVC.Infrastructure.Identity;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.WebUI.Email;
 using BaseMVC.WebUI.Models.Account;
@@ -13,6 +15,7 @@ namespace BaseMVC.WebUI.Controllers;
 
 [Route("[controller]/[action]")]
 public sealed class AccountController(
+    ISender sender,
     SignInManager<ApplicationUser> signInManager,
     UserManager<ApplicationUser> userManager,
     ApplicationDbContext dbContext,
@@ -43,57 +46,20 @@ public sealed class AccountController(
             return View(model);
         }
 
-        var user = await userManager.FindByEmailAsync(model.Email);
-
-        if (user is null)
+        var result = await sender.Send(new LoginCommand(model.Email, model.Password, model.RememberMe), HttpContext.RequestAborted);
+        if (result == LoginOutcome.Succeeded)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.Login,
-                AuditOutcome.Failed,
-                cancellationToken: HttpContext.RequestAborted);
-            ModelState.AddModelError(string.Empty, "Email hoặc mật khẩu không chính xác.");
-            return View(model);
-        }
-
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted);
-        var result = await signInManager.PasswordSignInAsync(
-            user,
-            model.Password,
-            model.RememberMe,
-            lockoutOnFailure: true);
-
-        if (result.Succeeded)
-        {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.Login,
-                AuditOutcome.Succeeded,
-                actorUserId: user.Id,
-                targetUserId: user.Id,
-                cancellationToken: HttpContext.RequestAborted);
-            await transaction.CommitAsync(HttpContext.RequestAborted);
             return RedirectToLocal(model.ReturnUrl);
         }
 
-        if (result.IsLockedOut)
+        if (result == LoginOutcome.LockedOut)
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.Login,
-                AuditOutcome.LockedOut,
-                targetUserId: user.Id,
-                cancellationToken: HttpContext.RequestAborted);
-            await transaction.CommitAsync(HttpContext.RequestAborted);
             ModelState.AddModelError(
                 string.Empty,
                 "Tài khoản tạm khóa do có nhiều lần đăng nhập không thành công. Vui lòng thử lại sau.");
         }
         else
         {
-            await auditLogWriter.WriteAsync(
-                AuditEventType.Login,
-                AuditOutcome.Failed,
-                targetUserId: user.Id,
-                cancellationToken: HttpContext.RequestAborted);
-            await transaction.CommitAsync(HttpContext.RequestAborted);
             ModelState.AddModelError(string.Empty, "Email hoặc mật khẩu không chính xác.");
         }
 
@@ -311,13 +277,7 @@ public sealed class AccountController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout(string? returnUrl = null)
     {
-        var userId = userManager.GetUserId(User);
-        await signInManager.SignOutAsync();
-        await auditLogWriter.WriteAsync(
-            AuditEventType.Logout,
-            AuditOutcome.Succeeded,
-            actorUserId: userId,
-            cancellationToken: HttpContext.RequestAborted);
+        await sender.Send(new LogoutCommand(userManager.GetUserId(User)), HttpContext.RequestAborted);
         return RedirectToLocal(returnUrl);
     }
 
