@@ -31,3 +31,9 @@ public sealed class DeleteStudentHandler(IStudentManagementService service) : IR
     public Task<StudentOperationResult> Handle(DeleteStudentCommand request, CancellationToken cancellationToken) =>
         service.DeleteAsync(request.Id, request.ActorUserId, cancellationToken);
 }
+
+public sealed class ImportStudentsHandler(IStudentImportService service) : IRequestHandler<ImportStudentsCommand, StudentImportOutcome>
+{
+    public Task<StudentImportOutcome> Handle(ImportStudentsCommand request, CancellationToken cancellationToken) =>
+        service.ImportAsync(request.Content, request.ActorUserId, cancellationToken);
+}

@@ -4,7 +4,7 @@ namespace BaseMVC.Domain.Students;
 
 public sealed class Student : BaseAuditableEntity<int>
 {
-    public const int StudentCodeMaxLength = 12;
+    public const int StudentCodeMaxLength = 15;
     public const int NameMaxLength = 100;
     public const int ClassCodeMaxLength = 200;
     public const int FacultyCodeLength = 2;

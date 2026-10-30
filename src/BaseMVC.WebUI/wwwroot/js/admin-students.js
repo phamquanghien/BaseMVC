@@ -390,5 +390,66 @@
     }
   });
 
+  const importModal = $("[data-student-import-modal]");
+  if (importModal instanceof HTMLDialogElement && config.canCreate && manager.dataset.importUrl) {
+    const importFile = $("[data-student-import-file]");
+    const importError = $("[data-student-import-error]");
+    const importSummary = $("[data-student-import-summary]");
+    const importErrors = $("[data-student-import-errors]");
+    const importSubmit = $("[data-student-import-submit]");
+    let isImporting = false;
+
+    const resetImport = () => {
+      importFile.value = "";
+      hideError(importError);
+      importSummary.classList.add("hidden");
+      importErrors.replaceChildren();
+    };
+
+    manager.querySelector("[data-student-import]")?.addEventListener("click", () => {
+      resetImport();
+      importModal.showModal();
+    });
+    $("[data-student-import-close]").addEventListener("click", () => importModal.close());
+
+    importSubmit.addEventListener("click", async () => {
+      if (isImporting) return;
+      hideError(importError);
+      importSummary.classList.add("hidden");
+      importErrors.replaceChildren();
+
+      const file = importFile.files?.[0];
+      if (!file) {
+        showError(importError, "Vui lòng chọn file Excel (.xlsx).");
+        return;
+      }
+
+      isImporting = true;
+      importSubmit.disabled = true;
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const result = await request(manager.dataset.importUrl, { method: "POST", body: formData });
+        importSummary.textContent = `Đã import ${result.importedCount}/${result.totalRows} dòng; ${result.errors.length} dòng lỗi.`;
+        importSummary.classList.remove("hidden");
+        for (const rowError of result.errors) {
+          const item = document.createElement("li");
+          item.textContent = `Dòng ${rowError.row}: ${rowError.message}`;
+          importErrors.append(item);
+        }
+        importFile.value = "";
+        if (result.importedCount > 0) {
+          page = 1;
+          await loadStudents();
+        }
+      } catch (error) {
+        showError(importError, error.message || "Không thể import file.");
+      } finally {
+        isImporting = false;
+        importSubmit.disabled = false;
+      }
+    });
+  }
+
   loadStudents();
 })();

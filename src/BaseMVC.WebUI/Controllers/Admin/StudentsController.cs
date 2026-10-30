@@ -11,6 +11,8 @@ namespace BaseMVC.WebUI.Controllers.Admin;
 [Route("Admin/Students")]
 public sealed class StudentsController(ISender sender) : Controller
 {
+    private const int MaxImportFileBytes = 5 * 1024 * 1024;
+
     [Authorize(Policy = "Permissions.Students.Read")]
     [HttpGet("")]
     public IActionResult Index() => View("~/Views/Admin/Students/Index.cshtml");
@@ -36,6 +38,28 @@ public sealed class StudentsController(ISender sender) : Controller
             new CreateStudentCommand(ToInput(request), User.FindFirstValue(ClaimTypes.NameIdentifier)),
             cancellationToken);
         return ToActionResult(result, nameof(Search), new { search = request.StudentCode.Trim() });
+    }
+
+    [Authorize(Policy = "Permissions.Students.Create")]
+    [HttpPost("import")]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(MaxImportFileBytes)]
+    public async Task<IActionResult> Import(IFormFile? file, CancellationToken cancellationToken)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { errors = new[] { "Vui lòng chọn file Excel (.xlsx)." } });
+        if (!string.Equals(Path.GetExtension(file.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { errors = new[] { "Chỉ hỗ trợ file Excel định dạng .xlsx." } });
+        if (file.Length > MaxImportFileBytes)
+            return BadRequest(new { errors = new[] { "File không được vượt quá 5 MB." } });
+
+        await using var stream = file.OpenReadStream();
+        var outcome = await sender.Send(
+            new ImportStudentsCommand(stream, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            cancellationToken);
+        return outcome.StatusCode == 200
+            ? Ok(outcome.Result)
+            : BadRequest(new { errors = new[] { outcome.Error } });
     }
 
     [Authorize(Policy = "Permissions.Students.Update")]

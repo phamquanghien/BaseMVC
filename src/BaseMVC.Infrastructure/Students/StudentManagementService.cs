@@ -127,7 +127,7 @@ public sealed class StudentManagementService(ApplicationDbContext dbContext) : I
     private Task<bool> FacultyExistsAsync(string facultyCode, CancellationToken cancellationToken) =>
         dbContext.Faculties.AnyAsync(faculty => faculty.FacultyCode == facultyCode, cancellationToken);
 
-    private static void Apply(Student student, StudentInput input)
+    internal static void Apply(Student student, StudentInput input)
     {
         student.StudentCode = input.StudentCode;
         student.LastName = input.LastName;
@@ -141,7 +141,7 @@ public sealed class StudentManagementService(ApplicationDbContext dbContext) : I
         student.DateOfBirth = input.DateOfBirth;
     }
 
-    private static (StudentInput Input, List<string> Errors) Normalize(StudentInput? input)
+    internal static (StudentInput Input, List<string> Errors) Normalize(StudentInput? input)
     {
         var errors = new List<string>();
         input ??= new StudentInput(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, false, false, false, false, null);
@@ -152,8 +152,8 @@ public sealed class StudentManagementService(ApplicationDbContext dbContext) : I
         var classCode = (input.ClassCode ?? string.Empty).Trim();
         var facultyCode = (input.FacultyCode ?? string.Empty).Trim().ToUpperInvariant();
 
-        if (studentCode.Length == 0 || studentCode.Length > Student.StudentCodeMaxLength || !studentCode.All(char.IsAsciiLetterOrDigit))
-            errors.Add($"Mã sinh viên phải gồm 1 đến {Student.StudentCodeMaxLength} ký tự chữ hoặc số.");
+        if (studentCode.Length == 0 || studentCode.Length > Student.StudentCodeMaxLength || !studentCode.All(c => char.IsAsciiLetterOrDigit(c) || c == '-'))
+            errors.Add($"Mã sinh viên phải gồm 1 đến {Student.StudentCodeMaxLength} ký tự chữ, số hoặc dấu gạch ngang (-).");
         if (lastName.Length == 0) errors.Add("Họ không được để trống.");
         else if (lastName.Length > Student.NameMaxLength) errors.Add($"Họ không được vượt quá {Student.NameMaxLength} ký tự.");
         if (firstName.Length == 0) errors.Add("Tên không được để trống.");

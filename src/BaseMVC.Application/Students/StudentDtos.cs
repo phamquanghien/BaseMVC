@@ -46,3 +46,16 @@ public sealed record StudentOperationResult(int StatusCode, object? Value = null
     public static StudentOperationResult NotFound(string error) => new(404, Errors: [error]);
     public static StudentOperationResult Conflict(string error) => new(409, Errors: [error]);
 }
+
+public sealed record StudentImportRowError(int Row, string Message);
+
+public sealed record StudentImportResult(
+    int TotalRows,
+    int ImportedCount,
+    IReadOnlyList<StudentImportRowError> Errors);
+
+public sealed record StudentImportOutcome(int StatusCode, StudentImportResult? Result = null, string? Error = null)
+{
+    public static StudentImportOutcome Success(StudentImportResult result) => new(200, result);
+    public static StudentImportOutcome BadRequest(string error) => new(400, Error: error);
+}

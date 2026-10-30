@@ -120,7 +120,7 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("StudentCode")
                         .IsRequired()
-                        .HasMaxLength(12)
+                        .HasMaxLength(15)
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

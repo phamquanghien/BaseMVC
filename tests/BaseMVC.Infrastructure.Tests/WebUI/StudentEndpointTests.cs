@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Identity;
+using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace BaseMVC.Infrastructure.Tests.WebUI;
@@ -101,7 +102,7 @@ public sealed partial class UserManagementEndpointTests
         {
             StudentPayload(code: ""),
             StudentPayload(code: "SV 000001"),
-            StudentPayload(code: "SV00000000001"),
+            StudentPayload(code: "SV00000000000001"),
             StudentPayload(lastName: ""),
             StudentPayload(firstName: ""),
             StudentPayload(classCode: new string('c', 201)),
@@ -221,6 +222,168 @@ public sealed partial class UserManagementEndpointTests
         foreach (var action in new[] { "Read", "Create", "Update", "Delete" })
             Assert.Contains($"Permissions.Students.{action}", permissions);
     }
+
+    private static byte[] BuildStudentWorkbook(params object?[][] rows)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.AddWorksheet("Students");
+        var headers = new[] { "StudentCode", "LastName", "FirstName", "Gender", "DateOfBirth", "ClassCode", "FacultyCode" };
+        for (var column = 0; column < headers.Length; column++) sheet.Cell(1, column + 1).Value = headers[column];
+        for (var row = 0; row < rows.Length; row++)
+        for (var column = 0; column < rows[row].Length; column++)
+        {
+            var value = rows[row][column];
+            var cell = sheet.Cell(row + 2, column + 1);
+            if (value is string text) cell.SetValue(text);
+            else if (value is bool flag) cell.SetValue(flag);
+            else if (value is DateTime date) cell.SetValue(date);
+        }
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    private static async Task<HttpResponseMessage> PostImportAsync(
+        HttpClient client, string token, byte[] content, string fileName = "students.xlsx")
+    {
+        using var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        form.Add(file, "file", fileName);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/Admin/Students/import") { Content = form };
+        request.Headers.Add("RequestVerificationToken", token);
+        return await client.SendAsync(request);
+    }
+
+    [Fact]
+    public async Task Student_import_requires_create_permission()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        const string email = "student-import-limited@example.test";
+        const string password = "LimitedUser123!";
+        await factory.CreateUserAsync(email, password);
+        await factory.CreateRoleForUserAsync(email, "StudentImportLimited");
+        await factory.SetRolePermissionAsync("StudentImportLimited", "Permissions.Students.Read", grant: true);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await SignInAsync(client, email, password);
+        var token = await GetAdminPageTokenAsync(client, "/Admin/Students");
+
+        using var response = await PostImportAsync(client, token, BuildStudentWorkbook());
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var anonymous = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var anonymousResponse = await PostImportAsync(anonymous, token, BuildStudentWorkbook());
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Student_import_saves_valid_rows_and_reports_invalid_rows()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var token = await GetAdminPageTokenAsync(client, "/Admin/Students");
+
+        using var faculty = await PostWithTokenAsync(
+            client, "/Admin/Faculties", token, new { facultyCode = "CT", facultyName = "Công nghệ" });
+        Assert.Equal(HttpStatusCode.Created, faculty.StatusCode);
+        using var existing = await PostWithTokenAsync(client, "/Admin/Students", token, StudentPayload(code: "SV0000000009"));
+        Assert.Equal(HttpStatusCode.Created, existing.StatusCode);
+
+        using var missingToken = await client.PostAsync("/Admin/Students/import", new MultipartFormDataContent());
+        Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
+        using var notExcel = await PostImportAsync(client, token, [1, 2, 3], "students.txt");
+        Assert.Equal(HttpStatusCode.BadRequest, notExcel.StatusCode);
+        using var corrupted = await PostImportAsync(client, token, [1, 2, 3]);
+        Assert.Equal(HttpStatusCode.BadRequest, corrupted.StatusCode);
+        using var empty = await PostImportAsync(client, token, BuildStudentWorkbook());
+        Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+
+        var workbook = BuildStudentWorkbook(
+            ["sv0000000001", "Nguyễn", "An", "1", "20/05/2004", "CT01", "ct"],
+            ["SV0000000002", "Trần", "Bình", "FALSE", new DateTime(2003, 1, 2), "CT01", "CT"],
+            ["SV0000000003", "Lê", "Cường", "true", "", "CT02", "CT"],
+            ["SV0000000004", "Phạm", "Dũng", "Nam", "20/05/2004", "CT01", "CT"],
+            ["SV0000000005", "Hoàng", "Em", "0", "2004-05-20", "CT01", "CT"],
+            ["SV0000000006", "Vũ", "Giang", "0", "31/02/2004", "CT01", "CT"],
+            ["SV0000000007", "Đỗ", "Hà", "0", "20/05/2004", "CT01", "ZZ"],
+            ["SV0000000009", "Bùi", "Khánh", "0", "20/05/2004", "CT01", "CT"],
+            ["SV0000000001", "Trùng", "Trong file", "0", "20/05/2004", "CT01", "CT"],
+            ["", "", "", "", "", "", ""],
+            ["SV0000000008", "", "Thiếu họ", "0", "20/05/2004", "CT01", "CT"]);
+        using var response = await PostImportAsync(client, token, workbook);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var result = await response.Content.ReadFromJsonAsync<StudentImportResultDto>();
+        Assert.NotNull(result);
+        Assert.Equal(10, result.TotalRows);
+        Assert.Equal(3, result.ImportedCount);
+        Assert.Equal([5, 6, 7, 8, 9, 10, 12], result.Errors.Select(error => error.Row).Order());
+
+        var all = await client.GetFromJsonAsync<StudentSearchDto>("/Admin/Students/search?page=1&pageSize=50");
+        Assert.NotNull(all);
+        Assert.Equal(4, all.TotalCount);
+
+        var first = Assert.Single(all.Items, item => item.StudentCode == "SV0000000001");
+        Assert.True(first.Gender);
+        Assert.Equal("2004-05-20", first.DateOfBirth);
+        Assert.Equal("CT", first.FacultyCode);
+        Assert.False(first.EligibleForEnglish);
+        Assert.False(first.PassedLanguageRequirement);
+        Assert.False(first.PassedITRequirement);
+        Assert.Equal("2003-01-02", Assert.Single(all.Items, item => item.StudentCode == "SV0000000002").DateOfBirth);
+        Assert.Null(Assert.Single(all.Items, item => item.StudentCode == "SV0000000003").DateOfBirth);
+        Assert.Equal("Trần", Assert.Single(all.Items, item => item.StudentCode == "SV0000000002").LastName);
+        Assert.Equal("Bình", Assert.Single(all.Items, item => item.StudentCode == "SV0000000002").FirstName);
+    }
+
+    [Fact]
+    public async Task Student_import_accepts_15_character_codes_and_rejects_more_than_10000_rows()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var token = await GetAdminPageTokenAsync(client, "/Admin/Students");
+        using var faculty = await PostWithTokenAsync(
+            client, "/Admin/Faculties", token, new { facultyCode = "CT", facultyName = "Công nghệ" });
+        Assert.Equal(HttpStatusCode.Created, faculty.StatusCode);
+
+        using var longCode = await PostWithTokenAsync(
+            client, "/Admin/Students", token, StudentPayload(code: "ABCDEFGHIJ12345"));
+        Assert.Equal(HttpStatusCode.Created, longCode.StatusCode);
+
+        using var hyphenCode = await PostWithTokenAsync(
+            client, "/Admin/Students", token, StudentPayload(code: "cttt-10210104"));
+        Assert.Equal(HttpStatusCode.Created, hyphenCode.StatusCode);
+        var hyphen = await hyphenCode.Content.ReadFromJsonAsync<StudentDto>();
+        Assert.Equal("CTTT-10210104", hyphen?.StudentCode);
+
+        using var badChar = await PostWithTokenAsync(
+            client, "/Admin/Students", token, StudentPayload(code: "CTTT_10210104"));
+        Assert.Equal(HttpStatusCode.BadRequest, badChar.StatusCode);
+
+        object?[][] Rows(int count) => Enumerable.Range(1, count)
+            .Select(index => new object?[] { $"SV{index:D8}", "Họ", "Tên", "0", "01/01/2000", "CT01", "CT" })
+            .ToArray();
+
+        using var tooMany = await PostImportAsync(client, token, BuildStudentWorkbook(Rows(10_001)));
+        Assert.Equal(HttpStatusCode.BadRequest, tooMany.StatusCode);
+
+        using var atLimit = await PostImportAsync(client, token, BuildStudentWorkbook(Rows(10_000)));
+        Assert.Equal(HttpStatusCode.OK, atLimit.StatusCode);
+        var result = await atLimit.Content.ReadFromJsonAsync<StudentImportResultDto>();
+        Assert.NotNull(result);
+        Assert.Equal(10_000, result.ImportedCount);
+    }
+
+    private sealed record StudentImportRowErrorDto(int Row, string Message);
+
+    private sealed record StudentImportResultDto(
+        int TotalRows,
+        int ImportedCount,
+        IReadOnlyList<StudentImportRowErrorDto> Errors);
 
     private sealed record FacultyOptionDto(string FacultyCode, string FacultyName);
 

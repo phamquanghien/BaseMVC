@@ -5,7 +5,7 @@ namespace BaseMVC.WebUI.Models.Students;
 public sealed class StudentMutationRequest
 {
     [Required(ErrorMessage = "Mã sinh viên là bắt buộc.")]
-    [StringLength(12, ErrorMessage = "Mã sinh viên không được vượt quá 12 ký tự.")]
+    [StringLength(15, ErrorMessage = "Mã sinh viên không được vượt quá 15 ký tự.")]
     public string StudentCode { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Họ là bắt buộc.")]
