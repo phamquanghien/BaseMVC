@@ -6,7 +6,9 @@ using BaseMVC.Application.Roles;
 using BaseMVC.Application.Permissions;
 using BaseMVC.Application.Accounts;
 using BaseMVC.Application.Faculties;
+using BaseMVC.Application.Students;
 using BaseMVC.Infrastructure.Faculties;
+using BaseMVC.Infrastructure.Students;
 using BaseMVC.Infrastructure.Persistence;
 using BaseMVC.Infrastructure.Authorization;
 using BaseMVC.Infrastructure.Auditing;
@@ -31,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IRoleManagementService, RoleManagementService>();
         services.AddScoped<IPermissionManagementService, PermissionManagementService>();
         services.AddScoped<IFacultyManagementService, FacultyManagementService>();
+        services.AddScoped<IStudentManagementService, StudentManagementService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();
         services.AddScoped<IAccountPasswordService, AccountPasswordService>();
 

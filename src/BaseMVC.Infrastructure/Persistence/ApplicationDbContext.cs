@@ -1,4 +1,5 @@
 using BaseMVC.Domain.Faculties;
+using BaseMVC.Domain.Students;
 using BaseMVC.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     public DbSet<Faculty> Faculties => Set<Faculty>();
+
+    public DbSet<Student> Students => Set<Student>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -28,6 +31,29 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(faculty => faculty.CreatedBy).HasMaxLength(450);
             entity.Property(faculty => faculty.LastModifiedBy).HasMaxLength(450);
             entity.HasIndex(faculty => faculty.FacultyCode).IsUnique();
+        });
+
+        builder.Entity<Student>(entity =>
+        {
+            entity.HasKey(student => student.Id);
+            entity.Property(student => student.StudentCode).HasMaxLength(Student.StudentCodeMaxLength).IsRequired();
+            entity.Property(student => student.LastName).HasMaxLength(Student.NameMaxLength).IsRequired();
+            entity.Property(student => student.FirstName).HasMaxLength(Student.NameMaxLength).IsRequired();
+            entity.Property(student => student.ClassCode).HasMaxLength(Student.ClassCodeMaxLength).IsRequired();
+            entity.Property(student => student.FacultyCode).HasMaxLength(Student.FacultyCodeLength).IsRequired();
+            entity.Property(student => student.Gender).HasDefaultValue(false);
+            entity.Property(student => student.EligibleForEnglish).HasDefaultValue(false);
+            entity.Property(student => student.PassedLanguageRequirement).HasDefaultValue(false);
+            entity.Property(student => student.PassedITRequirement).HasDefaultValue(false);
+            entity.Property(student => student.CreatedBy).HasMaxLength(450);
+            entity.Property(student => student.LastModifiedBy).HasMaxLength(450);
+            entity.HasIndex(student => student.StudentCode).IsUnique();
+            entity.HasIndex(student => student.FacultyCode);
+            entity.HasOne<Faculty>()
+                .WithMany()
+                .HasPrincipalKey(faculty => faculty.FacultyCode)
+                .HasForeignKey(student => student.FacultyCode)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<AuditLogEntry>(entity =>

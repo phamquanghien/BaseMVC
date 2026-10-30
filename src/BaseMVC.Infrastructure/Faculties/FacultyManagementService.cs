@@ -76,6 +76,35 @@ public sealed class FacultyManagementService(ApplicationDbContext dbContext) : I
         if (await dbContext.Faculties.AnyAsync(item => item.FacultyCode == code && item.Id != id, cancellationToken))
             return FacultyOperationResult.Conflict("Mã khoa này đã tồn tại.");
 
+        if (faculty.FacultyCode != code
+            && await dbContext.Students.AnyAsync(student => student.FacultyCode == faculty.FacultyCode, cancellationToken))
+            return FacultyOperationResult.Conflict("Không thể đổi mã khoa vì đã có sinh viên thuộc khoa này.");
+
+        if (faculty.FacultyCode != code)
+        {
+            // FacultyCode is the principal key of Student.FacultyCode, so EF forbids changing it on a tracked entity.
+            var modifiedAt = DateTimeOffset.UtcNow;
+            try
+            {
+                await dbContext.Faculties.Where(item => item.Id == id).ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.FacultyCode, code)
+                    .SetProperty(item => item.FacultyName, name)
+                    .SetProperty(item => item.LastModifiedBy, actorUserId)
+                    .SetProperty(item => item.LastModifiedAtUtc, modifiedAt), cancellationToken);
+            }
+            catch (DbUpdateException)
+            {
+                if (await dbContext.Faculties.AsNoTracking().AnyAsync(
+                    existing => existing.FacultyCode == code && existing.Id != id, cancellationToken))
+                    return FacultyOperationResult.Conflict("Mã khoa này đã tồn tại.");
+                throw;
+            }
+
+            dbContext.Entry(faculty).State = EntityState.Detached;
+            return FacultyOperationResult.Success(
+                new FacultyListItem(id, code, name, faculty.CreatedAtUtc, modifiedAt));
+        }
+
         faculty.FacultyCode = code;
         faculty.FacultyName = name;
         faculty.LastModifiedBy = actorUserId;
@@ -101,6 +130,9 @@ public sealed class FacultyManagementService(ApplicationDbContext dbContext) : I
     {
         var faculty = await dbContext.Faculties.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (faculty is null) return FacultyOperationResult.NotFound("Không tìm thấy khoa.");
+
+        if (await dbContext.Students.AnyAsync(student => student.FacultyCode == faculty.FacultyCode, cancellationToken))
+            return FacultyOperationResult.Conflict("Không thể xóa khoa vì đã có sinh viên thuộc khoa này.");
 
         dbContext.Faculties.Remove(faculty);
         await dbContext.SaveChangesAsync(cancellationToken);
