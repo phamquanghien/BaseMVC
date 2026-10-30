@@ -11,23 +11,25 @@ public sealed class FacultyManagementService(ApplicationDbContext dbContext) : I
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
-        var faculties = dbContext.Faculties.AsNoTracking();
+        // SQLite only ignores case for ASCII; filter in memory so Unicode (Vietnamese) is case-insensitive too.
+        var all = await dbContext.Faculties.AsNoTracking()
+            .OrderBy(faculty => faculty.FacultyCode)
+            .ThenBy(faculty => faculty.Id)
+            .ToListAsync(cancellationToken);
+        IEnumerable<Faculty> faculties = all;
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            faculties = faculties.Where(faculty =>
-                faculty.FacultyCode.Contains(term) || faculty.FacultyName.Contains(term));
+            faculties = all.Where(faculty =>
+                faculty.FacultyCode.Contains(term, StringComparison.CurrentCultureIgnoreCase) ||
+                faculty.FacultyName.Contains(term, StringComparison.CurrentCultureIgnoreCase));
         }
 
-        var totalCount = await faculties.CountAsync(cancellationToken);
+        var matches = faculties.ToList();
+        var totalCount = matches.Count;
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
         page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
-        var items = await faculties
-            .OrderBy(faculty => faculty.FacultyCode)
-            .ThenBy(faculty => faculty.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
+        var items = matches.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
         return new FacultySearchResponse(items.Select(ToListItem).ToArray(), page, pageSize, totalCount, totalPages);
     }

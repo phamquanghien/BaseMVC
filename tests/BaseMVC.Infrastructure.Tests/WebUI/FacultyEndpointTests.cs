@@ -119,6 +119,14 @@ public sealed partial class UserManagementEndpointTests
         Assert.NotNull(search);
         Assert.Equal("KT", Assert.Single(search.Items).FacultyCode);
 
+        var lower = await client.GetFromJsonAsync<FacultySearchDto>("/Admin/Faculties/search?search=T%E1%BA%BF&page=1&pageSize=10");
+        Assert.NotNull(lower);
+        Assert.Equal("KT", Assert.Single(lower.Items).FacultyCode);
+
+        var codeLower = await client.GetFromJsonAsync<FacultySearchDto>("/Admin/Faculties/search?search=kt&page=1&pageSize=10");
+        Assert.NotNull(codeLower);
+        Assert.Equal("KT", Assert.Single(codeLower.Items).FacultyCode);
+
         var paged = await client.GetFromJsonAsync<FacultySearchDto>("/Admin/Faculties/search?page=1&pageSize=1");
         Assert.NotNull(paged);
         Assert.Equal(2, paged.TotalCount);
