@@ -21,7 +21,11 @@ public static class PermissionCatalog
         new("Roles", "Delete"),
         new("Access", "Read"),
         new("Access", "Manage"),
-        new("Audit", "Read")
+        new("Audit", "Read"),
+        new("Faculties", "Read"),
+        new("Faculties", "Create"),
+        new("Faculties", "Update"),
+        new("Faculties", "Delete")
     ];
 
     public static IReadOnlyList<PermissionDefinition> ForRole(string roleName) =>
@@ -30,7 +34,7 @@ public static class PermissionCatalog
             IdentitySeedRoles.SuperAdmin => All,
             IdentitySeedRoles.Administrator => All
                 .Where(permission =>
-                    permission.Module is "Users" or "Roles"
+                    permission.Module is "Users" or "Roles" or "Faculties"
                     || permission is { Module: "Access", Action: "Read" })
                 .ToArray(),
             _ => []

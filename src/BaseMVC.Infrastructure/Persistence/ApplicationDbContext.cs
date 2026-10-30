@@ -1,3 +1,4 @@
+using BaseMVC.Domain.Faculties;
 using BaseMVC.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -9,9 +10,25 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 {
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
+    public DbSet<Faculty> Faculties => Set<Faculty>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
+
+        builder.Entity<Faculty>(entity =>
+        {
+            entity.HasKey(faculty => faculty.Id);
+            entity.Property(faculty => faculty.FacultyCode)
+                .HasMaxLength(Faculty.FacultyCodeLength)
+                .IsRequired();
+            entity.Property(faculty => faculty.FacultyName)
+                .HasMaxLength(Faculty.FacultyNameMaxLength)
+                .IsRequired();
+            entity.Property(faculty => faculty.CreatedBy).HasMaxLength(450);
+            entity.Property(faculty => faculty.LastModifiedBy).HasMaxLength(450);
+            entity.HasIndex(faculty => faculty.FacultyCode).IsUnique();
+        });
 
         builder.Entity<AuditLogEntry>(entity =>
         {

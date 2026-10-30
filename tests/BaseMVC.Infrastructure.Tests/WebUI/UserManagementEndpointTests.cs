@@ -34,7 +34,7 @@ using Microsoft.AspNetCore.WebUtilities;
 
 namespace BaseMVC.Infrastructure.Tests.WebUI;
 
-public sealed class UserManagementEndpointTests
+public sealed partial class UserManagementEndpointTests
 {
     [Fact]
     public async Task Application_cookie_uses_secure_defaults_and_sliding_fourteen_day_expiration()

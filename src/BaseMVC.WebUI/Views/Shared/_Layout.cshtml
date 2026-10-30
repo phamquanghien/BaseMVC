@@ -9,6 +9,8 @@
         && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Audit.Read")).Succeeded;
     var canReadUsers = User.Identity?.IsAuthenticated == true
         && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Users.Read")).Succeeded;
+    var canReadFaculties = User.Identity?.IsAuthenticated == true
+        && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Faculties.Read")).Succeeded;
 }
 <html lang="vi" data-theme="light">
 
@@ -42,6 +44,10 @@
                         @if (canReadUsers)
                         {
                             <li><a asp-controller="Users" asp-action="Index">Người dùng</a></li>
+                        }
+                        @if (canReadFaculties)
+                        {
+                            <li><a asp-controller="Faculties" asp-action="Index">Khoa</a></li>
                         }
                         @if (canReadPermissions)
                         {
@@ -92,6 +98,10 @@
                             @if (canReadUsers)
                             {
                                 <li><a asp-controller="Users" asp-action="Index">Người dùng</a></li>
+                            }
+                            @if (canReadFaculties)
+                            {
+                                <li><a asp-controller="Faculties" asp-action="Index">Khoa</a></li>
                             }
                             @if (canReadPermissions)
                             {
