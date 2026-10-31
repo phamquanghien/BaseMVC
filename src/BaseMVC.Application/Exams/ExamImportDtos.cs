@@ -1,11 +1,5 @@
 namespace BaseMVC.Application.Exams;
 
-/// <summary>Định dạng file Excel. Mỗi định dạng có bảng dữ liệu riêng; thêm giá trị mới khi bổ sung loại kỳ thi.</summary>
-public enum ExamImportFormat
-{
-    ItStandard
-}
-
 public enum ExamImportKind
 {
     Candidates,
@@ -33,39 +27,33 @@ public sealed record ExamImportOutcome(int StatusCode, ExamImportResult? Result 
     public static ExamImportOutcome Conflict(string error) => new(409, Error: error);
 }
 
+public sealed record ExamDataOutcome<T>(int StatusCode, T? Value = default, string? Error = null)
+{
+    public static ExamDataOutcome<T> Success(T value) => new(200, value);
+    public static ExamDataOutcome<T> BadRequest(string error) => new(400, Error: error);
+    public static ExamDataOutcome<T> NotFound(string error) => new(404, Error: error);
+    public static ExamDataOutcome<T> Conflict(string error) => new(409, Error: error);
+}
+
+public sealed record ExamDataCount(string Format, string Kind, int Count);
+
+/// <summary>DataFormat null nghĩa là loại kỳ thi chưa được gán định dạng; Counts chỉ gồm định dạng của kỳ thi.</summary>
 public sealed record ExamSummaryDto(
     int Id,
     string Name,
     int ExamTypeId,
     string ExamTypeName,
     string Status,
-    int ItCandidateCount,
-    int ItResultCount);
+    string? DataFormat,
+    bool SupportsCandidates,
+    IReadOnlyList<ExamDataCount> Counts);
 
-public sealed record ItExamCandidateDto(
-    int Id,
-    string StudentCode,
-    string LastName,
-    string FirstName,
-    string? ExamDate,
-    string? Session,
-    string? ExamDuration,
-    string? ExamRoom,
-    string? RetentionNote,
-    string? RetainedSection);
+public sealed record ExamDataColumn(string Key, string Label);
 
-public sealed record ItExamResultDto(
-    int Id,
-    string StudentCode,
-    string LastName,
-    string FirstName,
-    string? MultipleChoiceScore,
-    string? PracticalScore,
-    string? FinalScore,
-    string? Note);
-
-public sealed record ExamPagedResponse<T>(
-    IReadOnlyList<T> Items,
+/// <summary>Một trang dữ liệu thi; mỗi dòng là từ điển khóa (camelCase) - giá trị hiển thị.</summary>
+public sealed record ExamDataPage(
+    IReadOnlyList<ExamDataColumn> Columns,
+    IReadOnlyList<IReadOnlyDictionary<string, string?>> Items,
     int Page,
     int PageSize,
     int TotalCount,

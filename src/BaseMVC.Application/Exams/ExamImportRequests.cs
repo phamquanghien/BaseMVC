@@ -2,25 +2,23 @@ using MediatR;
 
 namespace BaseMVC.Application.Exams;
 
-public sealed record GetExamImportTemplateQuery(ExamImportFormat Format, ExamImportKind Kind) : IRequest<byte[]>;
+public sealed record GetExamImportTemplateQuery(int ExamId, ExamImportKind Kind) : IRequest<ExamDataOutcome<byte[]>>;
 
 public sealed record ImportExamDataCommand(
-    int ExamId, ExamImportFormat Format, ExamImportKind Kind, ExamImportMode Mode,
+    int ExamId, ExamImportKind Kind, ExamImportMode Mode,
     Stream Content, string? ActorUserId) : IRequest<ExamImportOutcome>;
 
 public sealed record GetExamSummaryQuery(int ExamId) : IRequest<ExamSummaryDto?>;
 
-public sealed record SearchItExamCandidatesQuery(int ExamId, string? Search, int Page, int PageSize)
-    : IRequest<ExamPagedResponse<ItExamCandidateDto>?>;
-
-public sealed record SearchItExamResultsQuery(int ExamId, string? Search, int Page, int PageSize)
-    : IRequest<ExamPagedResponse<ItExamResultDto>?>;
+public sealed record SearchExamDataQuery(
+    int ExamId, ExamImportKind Kind, string? Search, int Page, int PageSize)
+    : IRequest<ExamDataOutcome<ExamDataPage>>;
 
 public sealed class GetExamImportTemplateHandler(IExamImportService service)
-    : IRequestHandler<GetExamImportTemplateQuery, byte[]>
+    : IRequestHandler<GetExamImportTemplateQuery, ExamDataOutcome<byte[]>>
 {
-    public Task<byte[]> Handle(GetExamImportTemplateQuery request, CancellationToken cancellationToken) =>
-        Task.FromResult(service.BuildTemplate(request.Format, request.Kind));
+    public Task<ExamDataOutcome<byte[]>> Handle(GetExamImportTemplateQuery request, CancellationToken cancellationToken) =>
+        service.BuildTemplateAsync(request.ExamId, request.Kind, cancellationToken);
 }
 
 public sealed class ImportExamDataHandler(IExamImportService service)
@@ -28,7 +26,7 @@ public sealed class ImportExamDataHandler(IExamImportService service)
 {
     public Task<ExamImportOutcome> Handle(ImportExamDataCommand request, CancellationToken cancellationToken) =>
         service.ImportAsync(
-            request.ExamId, request.Format, request.Kind, request.Mode, request.Content, request.ActorUserId, cancellationToken);
+            request.ExamId, request.Kind, request.Mode, request.Content, request.ActorUserId, cancellationToken);
 }
 
 public sealed class GetExamSummaryHandler(IExamImportService service)
@@ -38,16 +36,9 @@ public sealed class GetExamSummaryHandler(IExamImportService service)
         service.GetSummaryAsync(request.ExamId, cancellationToken);
 }
 
-public sealed class SearchItExamCandidatesHandler(IExamImportService service)
-    : IRequestHandler<SearchItExamCandidatesQuery, ExamPagedResponse<ItExamCandidateDto>?>
+public sealed class SearchExamDataHandler(IExamImportService service)
+    : IRequestHandler<SearchExamDataQuery, ExamDataOutcome<ExamDataPage>>
 {
-    public Task<ExamPagedResponse<ItExamCandidateDto>?> Handle(SearchItExamCandidatesQuery request, CancellationToken cancellationToken) =>
-        service.SearchItCandidatesAsync(request.ExamId, request.Search, request.Page, request.PageSize, cancellationToken);
-}
-
-public sealed class SearchItExamResultsHandler(IExamImportService service)
-    : IRequestHandler<SearchItExamResultsQuery, ExamPagedResponse<ItExamResultDto>?>
-{
-    public Task<ExamPagedResponse<ItExamResultDto>?> Handle(SearchItExamResultsQuery request, CancellationToken cancellationToken) =>
-        service.SearchItResultsAsync(request.ExamId, request.Search, request.Page, request.PageSize, cancellationToken);
+    public Task<ExamDataOutcome<ExamDataPage>> Handle(SearchExamDataQuery request, CancellationToken cancellationToken) =>
+        service.SearchDataAsync(request.ExamId, request.Kind, request.Search, request.Page, request.PageSize, cancellationToken);
 }

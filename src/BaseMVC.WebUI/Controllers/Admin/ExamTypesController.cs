@@ -28,7 +28,7 @@ public sealed class ExamTypesController(ISender sender) : Controller
     public async Task<IActionResult> Create([FromBody] ExamTypeMutationRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new CreateExamTypeCommand(request.Name, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            new CreateExamTypeCommand(request.Name, request.DataFormat, User.FindFirstValue(ClaimTypes.NameIdentifier)),
             cancellationToken);
         return ToActionResult(result, nameof(Search), new { search = request.Name.Trim() });
     }
@@ -39,7 +39,7 @@ public sealed class ExamTypesController(ISender sender) : Controller
     public async Task<IActionResult> Edit(int id, [FromBody] ExamTypeMutationRequest request, CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new EditExamTypeCommand(id, request.Name, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            new EditExamTypeCommand(id, request.Name, request.DataFormat, User.FindFirstValue(ClaimTypes.NameIdentifier)),
             cancellationToken);
         return ToActionResult(result);
     }

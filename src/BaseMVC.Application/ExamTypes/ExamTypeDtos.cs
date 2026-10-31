@@ -3,6 +3,7 @@ namespace BaseMVC.Application.ExamTypes;
 public sealed record ExamTypeListItem(
     int Id,
     string Name,
+    string? DataFormat,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? LastModifiedAtUtc);
 

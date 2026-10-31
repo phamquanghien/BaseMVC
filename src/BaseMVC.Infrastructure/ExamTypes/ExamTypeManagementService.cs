@@ -1,6 +1,8 @@
 using BaseMVC.Application.ExamTypes;
 using BaseMVC.Domain.ExamTypes;
+using BaseMVC.Domain.Exams;
 using BaseMVC.Infrastructure.Auditing;
+using BaseMVC.Infrastructure.Exams;
 using BaseMVC.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -33,9 +35,10 @@ public sealed class ExamTypeManagementService(ApplicationDbContext dbContext, IA
         return new ExamTypeSearchResponse(items.Select(ToListItem).ToArray(), page, pageSize, totalCount, totalPages);
     }
 
-    public async Task<ExamTypeOperationResult> CreateAsync(string name, string? actorUserId, CancellationToken cancellationToken)
+    public async Task<ExamTypeOperationResult> CreateAsync(string name, string? dataFormat, string? actorUserId, CancellationToken cancellationToken)
     {
         var (normalizedName, errors) = Normalize(name);
+        var format = ParseFormat(dataFormat, errors);
         if (errors.Count > 0) return ExamTypeOperationResult.BadRequest(errors);
         var lowerName = normalizedName.ToLowerInvariant();
         if (await dbContext.ExamTypes.AnyAsync(item => item.Name.ToLower() == lowerName, cancellationToken))
@@ -44,6 +47,7 @@ public sealed class ExamTypeManagementService(ApplicationDbContext dbContext, IA
         var examType = new ExamType
         {
             Name = normalizedName,
+            DataFormat = format,
             CreatedBy = actorUserId,
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
@@ -65,18 +69,23 @@ public sealed class ExamTypeManagementService(ApplicationDbContext dbContext, IA
         return ExamTypeOperationResult.Created(ToListItem(examType));
     }
 
-    public async Task<ExamTypeOperationResult> EditAsync(int id, string name, string? actorUserId, CancellationToken cancellationToken)
+    public async Task<ExamTypeOperationResult> EditAsync(int id, string name, string? dataFormat, string? actorUserId, CancellationToken cancellationToken)
     {
         var examType = await dbContext.ExamTypes.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (examType is null) return ExamTypeOperationResult.NotFound("Không tìm thấy loại kỳ thi.");
 
         var (normalizedName, errors) = Normalize(name);
+        var format = ParseFormat(dataFormat, errors);
         if (errors.Count > 0) return ExamTypeOperationResult.BadRequest(errors);
         var lowerName = normalizedName.ToLowerInvariant();
         if (await dbContext.ExamTypes.AnyAsync(item => item.Name.ToLower() == lowerName && item.Id != id, cancellationToken))
             return ExamTypeOperationResult.Conflict(DuplicateNameMessage);
 
+        if (format != examType.DataFormat && await HasExamDataAsync(id, cancellationToken))
+            return ExamTypeOperationResult.Conflict("Không thể đổi định dạng dữ liệu vì đã có kỳ thi thuộc loại này được nhập danh sách thi hoặc kết quả thi.");
+
         examType.Name = normalizedName;
+        examType.DataFormat = format;
         examType.LastModifiedBy = actorUserId;
         examType.LastModifiedAtUtc = DateTimeOffset.UtcNow;
 
@@ -125,6 +134,26 @@ public sealed class ExamTypeManagementService(ApplicationDbContext dbContext, IA
         return (normalizedName, errors);
     }
 
+    private async Task<bool> HasExamDataAsync(int examTypeId, CancellationToken cancellationToken)
+    {
+        var examIds = await dbContext.Exams.IgnoreQueryFilters()
+            .Where(exam => exam.ExamTypeId == examTypeId).Select(exam => exam.Id).ToListAsync(cancellationToken);
+        foreach (var spec in ExamDataSpecs.Specs)
+        {
+            if (await spec.AnyForExamsAsync(dbContext, examIds, cancellationToken)) return true;
+        }
+
+        return false;
+    }
+
+    private static ExamDataFormat? ParseFormat(string? value, List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (Enum.TryParse<ExamDataFormat>(value.Trim(), ignoreCase: false, out var format) && Enum.IsDefined(format)) return format;
+        errors.Add("Định dạng dữ liệu không hợp lệ.");
+        return null;
+    }
+
     private static ExamTypeListItem ToListItem(ExamType examType) =>
-        new(examType.Id, examType.Name, examType.CreatedAtUtc, examType.LastModifiedAtUtc);
+        new(examType.Id, examType.Name, examType.DataFormat?.ToString(), examType.CreatedAtUtc, examType.LastModifiedAtUtc);
 }

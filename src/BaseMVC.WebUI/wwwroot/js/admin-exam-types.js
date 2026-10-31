@@ -69,6 +69,14 @@
   let isSaving = false;
 
   const { showError, hideError } = adminApi;
+  const formatLabels = {
+    ItStandard: "Chuẩn đầu ra Công nghệ thông tin",
+    LanguageStandard: "Chuẩn đầu ra Ngoại ngữ",
+    LanguagePlacement: "Kiểm tra trình độ Ngoại ngữ",
+    EnglishIntensive: "Tiếng Anh tăng cường",
+    ItBasicCertificate: "Chứng chỉ ứng dụng CNTT cơ bản",
+  };
+  const dataFormatSelect = manager.querySelector("#exam-type-data-format");
   const request = (url, options = {}) => adminApi.request(url, options, "#exam-type-antiforgery");
 
   const makeCell = (text, className = "") => {
@@ -87,6 +95,7 @@
     button.dataset.examTypeAction = action;
     button.dataset.examTypeId = String(examType.id);
     button.dataset.name = examType.name;
+    button.dataset.dataFormat = examType.dataFormat || "";
     return button;
   };
 
@@ -105,6 +114,12 @@
     for (const examType of items) {
       const row = document.createElement("tr");
       row.append(makeCell(examType.name));
+      row.append(
+        makeCell(
+          formatLabels[examType.dataFormat] || "Chưa gán",
+          examType.dataFormat ? "" : "text-warning",
+        ),
+      );
 
       const actions = document.createElement("td");
       actions.className = "text-right";
@@ -125,7 +140,7 @@
   const loadExamTypes = async () => {
     hideError(errorBanner);
     rows.innerHTML =
-      '<tr><td colspan="2" class="py-10 text-center text-base-content/60">Đang tải danh sách loại kỳ thi...</td></tr>';
+      '<tr><td colspan="3" class="py-10 text-center text-base-content/60">Đang tải danh sách loại kỳ thi...</td></tr>';
 
     const url = new URL(config.searchUrl, window.location.origin);
     url.searchParams.set("search", searchInput.value.trim());
@@ -165,11 +180,13 @@
       modalDescription.textContent = "Nhập tên loại kỳ thi.";
       submitButton.textContent = "Tạo loại kỳ thi";
       nameInput.value = "";
+      dataFormatSelect.value = "";
     } else if (mode === "edit") {
       modalTitle.textContent = "Chỉnh sửa loại kỳ thi";
       modalDescription.textContent = `Cập nhật loại kỳ thi “${examType.name}”.`;
       submitButton.textContent = "Lưu thay đổi";
       nameInput.value = examType.name;
+      dataFormatSelect.value = examType.dataFormat || "";
     } else {
       modalTitle.textContent = "Xác nhận xóa loại kỳ thi";
       modalDescription.textContent = `Bạn có chắc muốn xóa loại kỳ thi “${examType.name}” không?`;
@@ -200,6 +217,7 @@
     try {
       const body = JSON.stringify({
         name: nameInput.value,
+        dataFormat: dataFormatSelect.value || null,
       });
       if (modalMode === "create") {
         await request(config.createUrl, { method: "POST", body });
@@ -248,6 +266,7 @@
     const examType = {
       id: button.dataset.examTypeId,
       name: button.dataset.name,
+      dataFormat: button.dataset.dataFormat,
     };
     if (!examType.id) return;
     if (button.dataset.examTypeAction === "edit" && config.canUpdate) {

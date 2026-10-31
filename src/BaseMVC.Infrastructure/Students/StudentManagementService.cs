@@ -1,3 +1,4 @@
+using BaseMVC.Infrastructure.Exams;
 using BaseMVC.Application.Students;
 using BaseMVC.Domain.Students;
 using BaseMVC.Infrastructure.Persistence;
@@ -125,9 +126,11 @@ public sealed class StudentManagementService(ApplicationDbContext dbContext) : I
         var student = await dbContext.Students.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (student is null) return StudentOperationResult.NotFound("Không tìm thấy sinh viên.");
 
-        if (await dbContext.ItExamCandidates.IgnoreQueryFilters().AnyAsync(item => item.StudentId == id, cancellationToken)
-            || await dbContext.ItExamResults.IgnoreQueryFilters().AnyAsync(item => item.StudentId == id, cancellationToken))
-            return StudentOperationResult.Conflict("Sinh viên đã có trong danh sách thi hoặc kết quả thi của kỳ thi nên không thể xóa.");
+        foreach (var spec in ExamDataSpecs.Specs)
+        {
+            if (await spec.ReferencesStudentAsync(dbContext, id, cancellationToken))
+                return StudentOperationResult.Conflict("Sinh viên đã có trong danh sách thi hoặc kết quả thi của kỳ thi nên không thể xóa.");
+        }
 
         dbContext.Students.Remove(student);
         await dbContext.SaveChangesAsync(cancellationToken);

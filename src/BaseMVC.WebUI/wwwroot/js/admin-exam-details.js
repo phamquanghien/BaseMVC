@@ -6,8 +6,7 @@
   const $ = (selector) => root.querySelector(selector);
   const config = {
     summaryUrl: root.dataset.summaryUrl,
-    candidatesUrl: root.dataset.candidatesUrl,
-    resultsUrl: root.dataset.resultsUrl,
+    dataUrl: root.dataset.dataUrl,
     importUrl: root.dataset.importUrl,
     templateUrl: root.dataset.templateUrl,
     statusUrl: root.dataset.statusUrl,
@@ -16,7 +15,7 @@
   };
   const errorBanner = $("[data-details-error]");
 
-  if (!adminApi || !(errorBanner instanceof HTMLElement) || !config.summaryUrl || !config.candidatesUrl || !config.resultsUrl) {
+  if (!adminApi || !(errorBanner instanceof HTMLElement) || !config.summaryUrl || !config.dataUrl) {
     throw new Error("Exam details configuration is incomplete.");
   }
 
@@ -34,6 +33,26 @@
     Completed: "Hoàn thành",
   };
 
+  const formatName = $("[data-format-name]");
+  const formatHint = $("[data-format-hint]");
+  const candidatesCard = $("[data-candidates-card]");
+  if (!(formatName instanceof HTMLElement) || !(formatHint instanceof HTMLElement)) {
+    throw new Error("Exam details configuration is incomplete.");
+  }
+
+  const studentNote = "Mã sinh viên phải có trong danh sách sinh viên; họ tên lấy từ danh sách sinh viên.";
+  const formatInfo = {
+    ItStandard: { label: "Chuẩn đầu ra Công nghệ thông tin", note: studentNote },
+    LanguageStandard: { label: "Chuẩn đầu ra Ngoại ngữ", note: studentNote },
+    LanguagePlacement: { label: "Kiểm tra trình độ Ngoại ngữ", note: studentNote },
+    EnglishIntensive: { label: "Tiếng Anh tăng cường", note: `Chỉ hỗ trợ nhập kết quả thi (chưa có danh sách thi). ${studentNote}` },
+    ItBasicCertificate: { label: "Chứng chỉ ứng dụng CNTT cơ bản", note: "Thí sinh thi độc lập, không liên kết danh sách sinh viên. Số CCCD và Số báo danh không được trùng nhau trong một kỳ thi." },
+  };
+  const noFormatMessage = "Loại kỳ thi này chưa được gán định dạng dữ liệu. Vui lòng gán ở mục Loại kỳ thi để nhập và xem danh sách thi/kết quả thi.";
+  // Định dạng được suy ra từ loại kỳ thi của kỳ thi; cập nhật mỗi lần tải summary.
+  const state = { format: undefined, candidates: false };
+  const formatListeners = [];
+
   const loadSummary = async () => {
     try {
       const summary = await request(config.summaryUrl);
@@ -42,13 +61,24 @@
       $("[data-details-status]").textContent = statusLabels[summary.status] ?? summary.status;
       const statusSelect = $("[data-status-select]");
       if (statusSelect instanceof HTMLSelectElement) statusSelect.value = summary.status;
+      const changed = state.format !== summary.dataFormat || state.candidates !== summary.supportsCandidates;
+      state.format = summary.dataFormat;
+      state.candidates = summary.supportsCandidates;
+      const info = formatInfo[state.format];
+      formatName.textContent = info ? info.label : "Chưa gán định dạng";
+      formatHint.textContent = info ? info.note : noFormatMessage;
+      if (candidatesCard instanceof HTMLElement) candidatesCard.classList.toggle("hidden", !state.candidates);
+      if (changed) for (const listener of formatListeners) listener();
+      return summary;
     } catch (error) {
       showError(errorBanner, error.message || "Không thể tải thông tin kỳ thi.");
+      return null;
     }
   };
 
-  const createList = ({ prefix, url, columns }) => {
+  const createList = ({ prefix, kind }) => {
     const rows = $(`[data-${prefix}-rows]`);
+    const head = $(`[data-${prefix}-head]`);
     const search = $(`[data-${prefix}-search]`);
     const total = $(`[data-${prefix}-total]`);
     const pageLabel = $(`[data-${prefix}-page]`);
@@ -57,13 +87,19 @@
     let page = 1;
     let totalPages = 0;
     let timer;
+    let loadToken = 0;
 
-    const render = (items) => {
+    const render = (columns, items) => {
+      head.replaceChildren(...columns.map((column) => {
+        const cell = document.createElement("th");
+        cell.textContent = column.label;
+        return cell;
+      }));
       rows.replaceChildren();
       if (items.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
-        cell.colSpan = columns.length;
+        cell.colSpan = Math.max(columns.length, 1);
         cell.className = "py-8 text-center text-base-content/60";
         cell.textContent = "Chưa có dữ liệu.";
         row.append(cell);
@@ -74,7 +110,7 @@
         const row = document.createElement("tr");
         for (const column of columns) {
           const cell = document.createElement("td");
-          cell.textContent = item[column] ?? "";
+          cell.textContent = item[column.key] ?? "";
           row.append(cell);
         }
         rows.append(row);
@@ -82,22 +118,31 @@
     };
 
     const load = async () => {
+      if (!state.format || (kind === "Candidates" && !state.candidates)) {
+        rows.replaceChildren();
+        head.replaceChildren();
+        total.textContent = "";
+        return;
+      }
       hideError(errorBanner);
-      const query = new URL(url, window.location.origin);
+      const token = ++loadToken;
+      const query = new URL(config.dataUrl, window.location.origin);
+      query.searchParams.set("kind", kind);
       query.searchParams.set("page", String(page));
       query.searchParams.set("pageSize", "10");
       if (search.value.trim()) query.searchParams.set("search", search.value.trim());
       try {
         const data = await request(`${query.pathname}${query.search}`);
+        if (token !== loadToken) return;
         page = data.page;
         totalPages = data.totalPages;
         total.textContent = `(${data.totalCount})`;
         pageLabel.textContent = `Trang ${data.page} / ${Math.max(data.totalPages, 1)}`;
         previous.disabled = data.page <= 1;
         next.disabled = data.page >= data.totalPages;
-        render(data.items);
+        render(data.columns, data.items);
       } catch (error) {
-        showError(errorBanner, error.message || "Không thể tải dữ liệu.");
+        if (token === loadToken) showError(errorBanner, error.message || "Không thể tải dữ liệu.");
       }
     };
 
@@ -124,19 +169,10 @@
     return { load, reset: () => { page = 1; return load(); } };
   };
 
-  const candidates = createList({
-    prefix: "candidates",
-    url: config.candidatesUrl,
-    columns: ["studentCode", "lastName", "firstName", "examDate", "session", "examDuration", "examRoom", "retentionNote", "retainedSection"],
-  });
-  const results = createList({
-    prefix: "results",
-    url: config.resultsUrl,
-    columns: ["studentCode", "lastName", "firstName", "multipleChoiceScore", "practicalScore", "finalScore", "note"],
-  });
+  const candidates = createList({ prefix: "candidates", kind: "Candidates" });
+  const results = createList({ prefix: "results", kind: "Results" });
 
   if (config.canImport && config.importUrl && config.templateUrl) {
-    const format = $("[data-import-format]");
     const kind = $("[data-import-kind]");
     const mode = $("[data-import-mode]");
     const file = $("[data-import-file]");
@@ -151,11 +187,18 @@
     const updateHint = () => {
       hint.textContent = kind.value === "Candidates"
         ? "Danh sách thi nhập được khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
-        : "Kết quả thi nhập được khi kỳ thi ở trạng thái từ “Chưa bắt đầu” đến “Đã thi (Chờ kết quả)”; sau khi nhập kỳ thi chuyển sang “Đã nhập kết quả”. Mã sinh viên phải có trong danh sách sinh viên; họ tên lấy từ danh sách sinh viên.";
-      template.href = `${config.templateUrl}?format=${encodeURIComponent(format.value)}&kind=${encodeURIComponent(kind.value)}`;
+        : "Kết quả thi nhập được khi kỳ thi ở trạng thái từ “Chưa bắt đầu” đến “Đã thi (Chờ kết quả)”; sau khi nhập kỳ thi chuyển sang “Đã nhập kết quả”.";
+      template.href = `${config.templateUrl}?kind=${encodeURIComponent(kind.value)}`;
+      template.classList.toggle("hidden", !state.format);
+      submit.disabled = isImporting || !state.format;
     };
-    format.addEventListener("change", updateHint);
     kind.addEventListener("change", updateHint);
+    formatListeners.push(() => {
+      const option = kind.querySelector('option[value="Candidates"]');
+      if (option instanceof HTMLOptionElement) option.disabled = !state.candidates;
+      if (!state.candidates) kind.value = "Results";
+      updateHint();
+    });
     updateHint();
 
     submit.addEventListener("click", async () => {
@@ -175,7 +218,6 @@
       try {
         const body = new FormData();
         body.append("file", selected);
-        body.append("format", format.value);
         body.append("kind", kind.value);
         body.append("mode", mode.value);
         const result = await request(config.importUrl, { method: "POST", body });
@@ -194,7 +236,7 @@
         showError(importError, error.message || "Không thể import file.");
       } finally {
         isImporting = false;
-        submit.disabled = false;
+        submit.disabled = !state.format;
       }
     });
   }
@@ -221,7 +263,10 @@
     });
   }
 
+  formatListeners.push(() => {
+    candidates.reset();
+    results.reset();
+  });
+
   loadSummary();
-  candidates.load();
-  results.load();
 })();

@@ -8,11 +8,10 @@
 
 <section class="space-y-6" data-exam-details
          data-summary-url="@Url.Action("Summary", "Exams", new { area = "", id = Model })"
-         data-candidates-url="@Url.Action("ItCandidates", "Exams", new { area = "", id = Model })"
-         data-results-url="@Url.Action("ItResults", "Exams", new { area = "", id = Model })"
+         data-data-url="@Url.Action("Data", "Exams", new { area = "", id = Model })"
          data-import-url="@Url.Action("Import", "Exams", new { area = "", id = Model })"
          data-status-url="@Url.Action("ChangeStatus", "Exams", new { area = "", id = Model })"
-         data-template-url="@Url.Action("ImportTemplate", "Exams", new { area = "" })"
+         data-template-url="@Url.Action("ImportTemplate", "Exams", new { area = "", id = Model })"
          data-can-import="@canImport.ToString().ToLowerInvariant()"
          data-can-change-status="@canChangeStatus.ToString().ToLowerInvariant()">
     <div>
@@ -50,18 +49,19 @@
         </div>
     }
 
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-2 p-4 sm:p-6">
+            <p class="text-sm"><span class="font-medium">Định dạng dữ liệu của kỳ thi:</span> <span data-format-name>Đang tải...</span></p>
+            <p class="text-xs text-base-content/60" data-format-hint></p>
+        </div>
+    </div>
+
     @if (canImport)
     {
         <div class="card border border-base-300 bg-base-100 shadow-sm">
             <div class="card-body gap-4 p-4 sm:p-6">
                 <h2 class="text-lg font-semibold">Nhập dữ liệu từ Excel</h2>
-                <div class="grid gap-3 sm:grid-cols-3">
-                    <label class="form-control">
-                        <span class="label-text mb-1 font-medium">Định dạng file</span>
-                        <select class="select select-bordered w-full" data-import-format>
-                            <option value="ItStandard">Chuẩn đầu ra CNTT</option>
-                        </select>
-                    </label>
+                <div class="grid gap-3 sm:grid-cols-2">
                     <label class="form-control">
                         <span class="label-text mb-1 font-medium">Dữ liệu</span>
                         <select class="select select-bordered w-full" data-import-kind>
@@ -90,7 +90,7 @@
         </div>
     }
 
-    <div class="card border border-base-300 bg-base-100 shadow-sm">
+    <div class="card border border-base-300 bg-base-100 shadow-sm" data-candidates-card>
         <div class="card-body gap-4 p-4 sm:p-6">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h2 class="text-lg font-semibold">Danh sách thi <span class="text-sm font-normal text-base-content/60" data-candidates-total></span></h2>
@@ -99,7 +99,7 @@
             <div class="overflow-x-auto rounded-box border border-base-300">
                 <table class="table table-sm">
                     <thead>
-                        <tr><th>Mã SV</th><th>Họ lót</th><th>Tên</th><th>Ngày thi</th><th>Ca thi</th><th>Giờ thi</th><th>Phòng thi</th><th>Kỳ bảo lưu</th><th>Phần bảo lưu</th></tr>
+                        <tr data-candidates-head></tr>
                     </thead>
                     <tbody data-candidates-rows>
                         <tr><td colspan="10" class="py-8 text-center text-base-content/60">Đang tải...</td></tr>
@@ -123,7 +123,7 @@
             <div class="overflow-x-auto rounded-box border border-base-300">
                 <table class="table table-sm">
                     <thead>
-                        <tr><th>Mã SV</th><th>Họ lót</th><th>Tên</th><th>Điểm trắc nghiệm</th><th>Điểm thực hành</th><th>Tổng điểm</th><th>Ghi chú</th></tr>
+                        <tr data-results-head></tr>
                     </thead>
                     <tbody data-results-rows>
                         <tr><td colspan="8" class="py-8 text-center text-base-content/60">Đang tải...</td></tr>

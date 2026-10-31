@@ -42,7 +42,7 @@ public sealed partial class UserManagementEndpointTests
         Assert.Equal(HttpStatusCode.OK, details.StatusCode);
         using var summary = await client.GetAsync("/Admin/Exams/1/summary");
         Assert.Equal(HttpStatusCode.NotFound, summary.StatusCode);
-        using var template = await client.GetAsync("/Admin/Exams/import/template?format=ItStandard&kind=Candidates");
+        using var template = await client.GetAsync("/Admin/Exams/1/import/template?kind=Candidates");
         Assert.Equal(HttpStatusCode.Forbidden, template.StatusCode);
         using var import = await PostExamImportAsync(client, token, 1, "Candidates", "ReplaceAll", BuildItWorkbook(CandidateHeaders));
         Assert.Equal(HttpStatusCode.Forbidden, import.StatusCode);
@@ -82,10 +82,12 @@ public sealed partial class UserManagementEndpointTests
         using var factory = new UserManagementWebApplicationFactory();
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var token = await GetAntiforgeryTokenAsync(client);
+        var exam = await CreateItExamAsync(factory, client, token);
 
         foreach (var (kind, headers) in new[] { ("Candidates", CandidateHeaders), ("Results", ResultHeaders) })
         {
-            using var response = await client.GetAsync($"/Admin/Exams/import/template?format=ItStandard&kind={kind}");
+            using var response = await client.GetAsync($"/Admin/Exams/{exam.Id}/import/template?kind={kind}");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var workbook = new XLWorkbook(await response.Content.ReadAsStreamAsync());
             var sheet = workbook.Worksheets.First();
@@ -93,8 +95,10 @@ public sealed partial class UserManagementEndpointTests
                 Assert.Equal(headers[column], sheet.Cell(1, column + 1).GetString());
         }
 
-        using var invalid = await client.GetAsync("/Admin/Exams/import/template?format=ItStandard&kind=Unknown");
+        using var invalid = await client.GetAsync($"/Admin/Exams/{exam.Id}/import/template?kind=Unknown");
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        using var missing = await client.GetAsync("/Admin/Exams/9999/import/template?kind=Candidates");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
 
     [Fact]
@@ -141,14 +145,14 @@ public sealed partial class UserManagementEndpointTests
         Assert.Equal("ScheduleArranged", summary.Status);
         Assert.Equal(3, summary.ItCandidateCount);
 
-        var list = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/it-candidates?page=1&pageSize=10");
+        var list = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/data?kind=Candidates&page=1&pageSize=10");
         Assert.NotNull(list);
         Assert.Equal("20/11/2026", list.Items[0].ExamDate);
         // Names in the file ("Nguyễn Văn", "An") are ignored: they always come from the Student table.
         Assert.Equal("Họ", list.Items[0].LastName);
         Assert.Equal("Tên", list.Items[0].FirstName);
         Assert.Equal("05/12/2026", list.Items[1].ExamDate);
-        var filtered = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/it-candidates?search=TR%E1%BA%A6N");
+        var filtered = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/data?kind=Candidates&search=TR%E1%BA%A6N");
         Assert.NotNull(filtered);
         Assert.Equal("SV02", Assert.Single(filtered.Items).StudentCode);
 
@@ -158,7 +162,7 @@ public sealed partial class UserManagementEndpointTests
         await SetExamStatusAsync(factory, exam.Id, ExamStatus.AwaitingSchedule);
         using var again = await PostExamImportAsync(client, token, exam.Id, "Candidates", "ReplaceAll", BuildItWorkbook(CandidateHeaders, ["1", "SV03", "Lê", "Cường"]));
         Assert.Equal(HttpStatusCode.OK, again.StatusCode);
-        var replaced = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/it-candidates");
+        var replaced = await client.GetFromJsonAsync<PagedResponse<CandidateRow>>($"/Admin/Exams/{exam.Id}/data?kind=Candidates");
         Assert.Equal("SV03", Assert.Single(replaced!.Items).StudentCode);
 
         foreach (var status in new[] { ExamStatus.RegistrationOpen, ExamStatus.RegistrationCompleted, ExamStatus.AwaitingSchedule })
@@ -216,7 +220,7 @@ public sealed partial class UserManagementEndpointTests
         Assert.Equal(1, addOnlyResult.ImportedCount);
         Assert.Single(addOnlyResult.Errors);
 
-        var all = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/it-results?page=1&pageSize=10");
+        var all = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/data?kind=Results&page=1&pageSize=10");
         Assert.NotNull(all);
         Assert.Equal(3, all.TotalCount);
         var first01 = all.Items.Single(item => item.StudentCode == "SV01");
@@ -230,14 +234,14 @@ public sealed partial class UserManagementEndpointTests
         var badOnlyResult = await badOnly.Content.ReadFromJsonAsync<ExamImportResultDto>();
         Assert.NotNull(badOnlyResult);
         Assert.Equal(0, badOnlyResult.ImportedCount);
-        var unchanged = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/it-results");
+        var unchanged = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/data?kind=Results");
         Assert.Equal(3, unchanged!.TotalCount);
 
         await SetExamStatusAsync(factory, exam.Id, ExamStatus.Taken);
         using var replace = await PostExamImportAsync(client, token, exam.Id, "Results", "ReplaceAll", BuildItWorkbook(
             ResultHeaders, ["1", "SV03", "Lê", "Cường", "9", "9", "90", ""]));
         Assert.Equal(HttpStatusCode.OK, replace.StatusCode);
-        var replaced = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/it-results");
+        var replaced = await client.GetFromJsonAsync<PagedResponse<ResultRow>>($"/Admin/Exams/{exam.Id}/data?kind=Results");
         Assert.Equal("SV03", Assert.Single(replaced!.Items).StudentCode);
 
         foreach (var status in new[] { ExamStatus.ResultsEntered, ExamStatus.Completed })
@@ -275,7 +279,7 @@ public sealed partial class UserManagementEndpointTests
         Assert.Empty(hidden!.Items);
         var shown = await client.GetFromJsonAsync<ExamSearchDto>("/Admin/Exams/search?includeDeleted=true");
         Assert.Single(shown!.Items);
-        using var details = await client.GetAsync($"/Admin/Exams/{exam.Id}/it-results");
+        using var details = await client.GetAsync($"/Admin/Exams/{exam.Id}/data?kind=Results");
         Assert.Equal(HttpStatusCode.NotFound, details.StatusCode);
     }
 
@@ -339,11 +343,26 @@ public sealed partial class UserManagementEndpointTests
         await dbContext.SaveChangesAsync();
     }
 
-    private static async Task<ExamDto> CreateItExamAsync(
-        UserManagementWebApplicationFactory factory, HttpClient client, string token)
+    private static Task<ExamDto> CreateItExamAsync(
+        UserManagementWebApplicationFactory factory, HttpClient client, string token) =>
+        CreateExamWithFormatAsync(factory, client, token, ExamDataFormat.ItStandard);
+
+    /// <summary>Tạo loại kỳ thi (gán định dạng nếu có) rồi kỳ thi thuộc loại đó qua API.</summary>
+    private static async Task<ExamDto> CreateExamWithFormatAsync(
+        UserManagementWebApplicationFactory factory, HttpClient client, string token, ExamDataFormat? format)
     {
-        var types = await SeedExamTypesAsync(factory, client);
-        return await CreateExamAsync(client, token, "Chuẩn đầu ra CNTT", types[0].Id);
+        var typeName = $"Loại {format?.ToString() ?? "chưa gán"}";
+        int typeId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var examType = new BaseMVC.Domain.ExamTypes.ExamType { Name = typeName, DataFormat = format };
+            dbContext.ExamTypes.Add(examType);
+            await dbContext.SaveChangesAsync();
+            typeId = examType.Id;
+        }
+
+        return await CreateExamAsync(client, token, $"Kỳ thi {typeName}", typeId);
     }
 
     private static byte[] BuildItWorkbook(string[] headers, params string[][] rows)
@@ -368,7 +387,6 @@ public sealed partial class UserManagementEndpointTests
         file.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         form.Add(file, "file", fileName);
-        form.Add(new StringContent("ItStandard"), "format");
         form.Add(new StringContent(kind), "kind");
         form.Add(new StringContent(mode), "mode");
         using var request = new HttpRequestMessage(HttpMethod.Post, $"/Admin/Exams/{examId}/import") { Content = form };
@@ -380,7 +398,12 @@ public sealed partial class UserManagementEndpointTests
 
     private sealed record ExamImportErrorDto(int Row, string Message);
 
-    private sealed record ExamSummaryResponse(int Id, string Name, string Status, int ItCandidateCount, int ItResultCount);
+    private sealed record ExamSummaryResponse(int Id, string Name, string Status, string? DataFormat, List<CountRow> Counts)
+    {
+        public int ItCandidateCount => Counts.Single(c => c.Format == "ItStandard" && c.Kind == "Candidates").Count;
+    }
+
+    private sealed record CountRow(string Format, string Kind, int Count);
 
     private sealed record PagedResponse<T>(List<T> Items, int Page, int PageSize, int TotalCount, int TotalPages);
 

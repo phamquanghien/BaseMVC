@@ -129,8 +129,16 @@ public sealed class ExamManagementService(ApplicationDbContext dbContext, IAudit
         if (exam is null) return ExamOperationResult.NotFound(ExamNotFoundMessage);
 
         // Exams that never started and hold no imported data are removed; the rest are kept for history and only hidden.
-        var hasData = await dbContext.ItExamResults.AnyAsync(item => item.ExamId == id, cancellationToken)
-            || await dbContext.ItExamCandidates.AnyAsync(item => item.ExamId == id, cancellationToken);
+        var hasData = false;
+        foreach (var spec in ExamDataSpecs.Specs)
+        {
+            if (await spec.CountAsync(dbContext, id, cancellationToken) > 0)
+            {
+                hasData = true;
+                break;
+            }
+        }
+
         if (exam.Status == ExamStatus.NotStarted && !hasData)
         {
             dbContext.Exams.Remove(exam);

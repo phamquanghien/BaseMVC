@@ -12,6 +12,7 @@ namespace BaseMVC.WebUI.Controllers.Admin;
 public sealed class ExamsController(ISender sender) : Controller
 {
     private const int MaxImportFileBytes = 5 * 1024 * 1024;
+    private const string UnsupportedMessage = "Loại dữ liệu không hợp lệ.";
 
     [Authorize(Policy = "Permissions.Exams.Read")]
     [HttpGet("")]
@@ -38,37 +39,26 @@ public sealed class ExamsController(ISender sender) : Controller
     }
 
     [Authorize(Policy = "Permissions.Exams.Read")]
-    [HttpGet("{id:int}/it-candidates")]
-    public async Task<IActionResult> ItCandidates(
-        int id, [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
-        CancellationToken cancellationToken = default)
+    [HttpGet("{id:int}/data")]
+    public async Task<IActionResult> Data(
+        int id, [FromQuery] ExamImportKind kind, [FromQuery] string? search,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 10, CancellationToken cancellationToken = default)
     {
-        var response = await sender.Send(new SearchItExamCandidatesQuery(id, search, page, pageSize), cancellationToken);
-        return response is null ? NotFound(new { errors = new[] { "Không tìm thấy kỳ thi." } }) : Ok(response);
-    }
-
-    [Authorize(Policy = "Permissions.Exams.Read")]
-    [HttpGet("{id:int}/it-results")]
-    public async Task<IActionResult> ItResults(
-        int id, [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 10,
-        CancellationToken cancellationToken = default)
-    {
-        var response = await sender.Send(new SearchItExamResultsQuery(id, search, page, pageSize), cancellationToken);
-        return response is null ? NotFound(new { errors = new[] { "Không tìm thấy kỳ thi." } }) : Ok(response);
+        var outcome = await sender.Send(new SearchExamDataQuery(id, kind, search, page, pageSize), cancellationToken);
+        return outcome.StatusCode == 200 ? Ok(outcome.Value) : ToErrorResult(outcome.StatusCode, outcome.Error);
     }
 
     [Authorize(Policy = "Permissions.Exams.Update")]
-    [HttpGet("import/template")]
-    public async Task<IActionResult> ImportTemplate(
-        [FromQuery] ExamImportFormat format, [FromQuery] ExamImportKind kind, CancellationToken cancellationToken)
+    [HttpGet("{id:int}/import/template")]
+    public async Task<IActionResult> ImportTemplate(int id, [FromQuery] ExamImportKind kind, CancellationToken cancellationToken)
     {
-        if (!Enum.IsDefined(format) || !Enum.IsDefined(kind))
-            return BadRequest(new { errors = new[] { "Định dạng file mẫu không hợp lệ." } });
-
-        return File(
-            await sender.Send(new GetExamImportTemplateQuery(format, kind), cancellationToken),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            $"Exam{format}{kind}Template.xlsx");
+        var outcome = await sender.Send(new GetExamImportTemplateQuery(id, kind), cancellationToken);
+        return outcome.StatusCode == 200
+            ? File(
+                outcome.Value!,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                $"Exam{id}{kind}Template.xlsx")
+            : ToErrorResult(outcome.StatusCode, outcome.Error);
     }
 
     [Authorize(Policy = "Permissions.Exams.Update")]
@@ -76,11 +66,13 @@ public sealed class ExamsController(ISender sender) : Controller
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(MaxImportFileBytes)]
     public async Task<IActionResult> Import(
-        int id, IFormFile? file, [FromForm] ExamImportFormat format, [FromForm] ExamImportKind kind,
+        int id, IFormFile? file, [FromForm] ExamImportKind kind,
         [FromForm] ExamImportMode mode, CancellationToken cancellationToken)
     {
-        if (!Enum.IsDefined(format) || !Enum.IsDefined(kind) || !Enum.IsDefined(mode))
-            return BadRequest(new { errors = new[] { "Định dạng, loại dữ liệu hoặc chế độ nhập không hợp lệ." } });
+        if (!Enum.IsDefined(mode))
+            return BadRequest(new { errors = new[] { "Chế độ nhập không hợp lệ." } });
+        if (!Enum.IsDefined(kind))
+            return BadRequest(new { errors = new[] { UnsupportedMessage } });
         if (file is null || file.Length == 0)
             return BadRequest(new { errors = new[] { "Vui lòng chọn file Excel (.xlsx)." } });
         if (!string.Equals(Path.GetExtension(file.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
@@ -90,16 +82,17 @@ public sealed class ExamsController(ISender sender) : Controller
 
         await using var stream = file.OpenReadStream();
         var outcome = await sender.Send(
-            new ImportExamDataCommand(id, format, kind, mode, stream, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            new ImportExamDataCommand(id, kind, mode, stream, User.FindFirstValue(ClaimTypes.NameIdentifier)),
             cancellationToken);
-        return outcome.StatusCode switch
-        {
-            200 => Ok(outcome.Result),
-            404 => NotFound(new { errors = new[] { outcome.Error } }),
-            409 => Conflict(new { errors = new[] { outcome.Error } }),
-            _ => BadRequest(new { errors = new[] { outcome.Error } })
-        };
+        return outcome.StatusCode == 200 ? Ok(outcome.Result) : ToErrorResult(outcome.StatusCode, outcome.Error);
     }
+
+    private IActionResult ToErrorResult(int statusCode, string? error) => statusCode switch
+    {
+        404 => NotFound(new { errors = new[] { error } }),
+        409 => Conflict(new { errors = new[] { error } }),
+        _ => BadRequest(new { errors = new[] { error } })
+    };
 
     [Authorize(Policy = "Permissions.Exams.Read")]
     [HttpGet("exam-types")]

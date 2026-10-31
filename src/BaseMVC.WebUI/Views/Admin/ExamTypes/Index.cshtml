@@ -54,11 +54,12 @@
                     <thead>
                         <tr>
                             <th>Tên loại kỳ thi</th>
+                            <th>Định dạng dữ liệu thi</th>
                             <th class="text-right">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody data-exam-type-rows>
-                        <tr><td colspan="2" class="py-10 text-center text-base-content/60">Đang tải danh sách loại kỳ thi...</td></tr>
+                        <tr><td colspan="3" class="py-10 text-center text-base-content/60">Đang tải danh sách loại kỳ thi...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -90,6 +91,18 @@
                 <div>
                     <label for="exam-type-name" class="label"><span class="label-text font-medium">Tên loại kỳ thi</span></label>
                     <input id="exam-type-name" name="Name" type="text" class="input input-bordered w-full" maxlength="500" autocomplete="off" />
+                </div>
+                <div>
+                    <label for="exam-type-data-format" class="label"><span class="label-text font-medium">Định dạng dữ liệu thi (file Excel)</span></label>
+                    <select id="exam-type-data-format" name="DataFormat" class="select select-bordered w-full">
+                        <option value="">Chưa gán</option>
+                        <option value="ItStandard">Chuẩn đầu ra Công nghệ thông tin</option>
+                        <option value="LanguageStandard">Chuẩn đầu ra Ngoại ngữ</option>
+                        <option value="LanguagePlacement">Kiểm tra trình độ Ngoại ngữ</option>
+                        <option value="EnglishIntensive">Tiếng Anh tăng cường</option>
+                        <option value="ItBasicCertificate">Chứng chỉ ứng dụng Công nghệ thông tin cơ bản</option>
+                    </select>
+                    <p class="mt-1 text-xs text-base-content/60">Các kỳ thi thuộc loại này sẽ nhập danh sách thi/kết quả thi theo định dạng đã chọn.</p>
                 </div>
             </div>
             <div class="modal-action">

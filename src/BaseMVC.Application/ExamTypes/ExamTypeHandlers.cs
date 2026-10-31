@@ -11,13 +11,13 @@ public sealed class SearchExamTypesHandler(IExamTypeManagementService service) :
 public sealed class CreateExamTypeHandler(IExamTypeManagementService service) : IRequestHandler<CreateExamTypeCommand, ExamTypeOperationResult>
 {
     public Task<ExamTypeOperationResult> Handle(CreateExamTypeCommand request, CancellationToken cancellationToken) =>
-        service.CreateAsync(request.Name, request.ActorUserId, cancellationToken);
+        service.CreateAsync(request.Name, request.DataFormat, request.ActorUserId, cancellationToken);
 }
 
 public sealed class EditExamTypeHandler(IExamTypeManagementService service) : IRequestHandler<EditExamTypeCommand, ExamTypeOperationResult>
 {
     public Task<ExamTypeOperationResult> Handle(EditExamTypeCommand request, CancellationToken cancellationToken) =>
-        service.EditAsync(request.Id, request.Name, request.ActorUserId, cancellationToken);
+        service.EditAsync(request.Id, request.Name, request.DataFormat, request.ActorUserId, cancellationToken);
 }
 
 public sealed class DeleteExamTypeHandler(IExamTypeManagementService service) : IRequestHandler<DeleteExamTypeCommand, ExamTypeOperationResult>
