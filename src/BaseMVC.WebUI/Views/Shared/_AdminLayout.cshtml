@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+@using static BaseMVC.WebUI.Navigation.NavUi
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    var access = await NavAccess.GetAsync(AuthorizationService, User);
+}
+<html lang="vi" data-theme="light">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>@ViewData["Title"] - Quản trị BaseMVC</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+
+<body class="bg-base-200 text-base-content">
+    <div class="drawer lg:drawer-open">
+        <input id="admin-drawer" type="checkbox" class="drawer-toggle" />
+        <div class="drawer-content flex min-h-screen flex-col">
+            <header class="sticky top-0 z-20 border-b border-base-300 bg-base-100/90 shadow-sm backdrop-blur">
+                <div class="h-0.5 bg-gradient-to-r from-primary via-secondary to-accent" aria-hidden="true"></div>
+                <div class="navbar gap-2 px-4 sm:px-6">
+                    <label for="admin-drawer" class="btn btn-ghost btn-square lg:hidden" aria-label="Mở menu quản trị">@Icon("menu", "size-6")</label>
+                    <div class="min-w-0 flex-1">
+                        <p class="truncate text-lg font-semibold">@ViewData["Title"]</p>
+                    </div>
+                    <a class="btn btn-ghost btn-sm hidden sm:inline-flex" asp-area="" asp-controller="Home" asp-action="Index">@Icon("home") Về trang chủ</a>
+                    <partial name="_AccountMenu" />
+                </div>
+            </header>
+
+            <main id="main-content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+                @RenderBody()
+            </main>
+
+            <footer class="border-t border-base-300 bg-base-100 px-4 py-4 text-sm text-base-content/70 sm:px-6">
+                &copy; @DateTime.Now.Year BaseMVC · Khu vực quản trị
+            </footer>
+        </div>
+        <div class="drawer-side z-30">
+            <label for="admin-drawer" aria-label="Đóng menu quản trị" class="drawer-overlay"></label>
+            <aside class="flex min-h-full w-72 flex-col border-r border-base-300 bg-base-100">
+                <a class="flex items-center gap-2 border-b border-base-300 px-5 py-4 text-lg font-bold tracking-tight"
+                   asp-area="" asp-controller="AdminHome" asp-action="Index" aria-label="BaseMVC - Quản trị">
+                    <span class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-sm">B</span>
+                    <span>BaseMVC <span class="badge badge-primary badge-sm align-middle">Admin</span></span>
+                </a>
+                <ul class="menu w-full flex-1 gap-1 p-3" aria-label="Menu quản trị">
+                    <li><a asp-area="" asp-controller="AdminHome" asp-action="Index" class="@(IsActive(ViewContext, "AdminHome") ? "menu-active" : "")">@Icon("dashboard") Tổng quan</a></li>
+                    @if (access.System)
+                    {
+                        <li>
+                            <details open>
+                                <summary class="font-semibold">@Icon("system") Hệ thống</summary>
+                                <ul>
+                                    @if (access.Roles)
+                                    {
+                                        <li><a asp-area="" asp-controller="Roles" asp-action="Index" class="@(IsActive(ViewContext, "Roles") ? "menu-active" : "")">@Icon("roles") Vai trò</a></li>
+                                    }
+                                    @if (access.Permissions)
+                                    {
+                                        <li><a asp-area="" asp-controller="Permissions" asp-action="Index" class="@(IsActive(ViewContext, "Permissions") ? "menu-active" : "")">@Icon("permissions") Phân quyền</a></li>
+                                    }
+                                    @if (access.Users)
+                                    {
+                                        <li><a asp-area="" asp-controller="Users" asp-action="Index" class="@(IsActive(ViewContext, "Users") ? "menu-active" : "")">@Icon("users") Người dùng</a></li>
+                                    }
+                                    @if (access.Audit)
+                                    {
+                                        <li><a asp-area="" asp-controller="Audit" asp-action="Index" class="@(IsActive(ViewContext, "Audit") ? "menu-active" : "")">@Icon("audit") Nhật ký</a></li>
+                                    }
+                                </ul>
+                            </details>
+                        </li>
+                    }
+                    @if (access.Data)
+                    {
+                        <li>
+                            <details open>
+                                <summary class="font-semibold">@Icon("data") Dữ liệu</summary>
+                                <ul>
+                                    @if (access.Faculties)
+                                    {
+                                        <li><a asp-area="" asp-controller="Faculties" asp-action="Index" class="@(IsActive(ViewContext, "Faculties") ? "menu-active" : "")">@Icon("faculties") Khoa</a></li>
+                                    }
+                                    @if (access.Students)
+                                    {
+                                        <li><a asp-area="" asp-controller="Students" asp-action="Index" class="@(IsActive(ViewContext, "Students") ? "menu-active" : "")">@Icon("students") Sinh viên</a></li>
+                                    }
+                                </ul>
+                            </details>
+                        </li>
+                    }
+                </ul>
+            </aside>
+        </div>
+    </div>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+
+</html>

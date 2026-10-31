@@ -1,0 +1,79 @@
+@using static BaseMVC.WebUI.Navigation.NavUi
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "Tổng quan quản trị";
+    var access = await NavAccess.GetAsync(AuthorizationService, User);
+}
+
+<section class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold">Xin chào, @User.Identity?.Name</h1>
+        <p class="mt-1 text-base-content/70">Chọn một chức năng để bắt đầu.</p>
+    </div>
+    @if (!access.Any)
+    {
+        <div class="alert alert-warning" role="status">Tài khoản của bạn chưa được cấp quyền truy cập chức năng quản trị nào.</div>
+    }
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        @if (access.Roles)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Roles" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("roles", "size-5")</span>
+                    <h3 class="card-title text-base">Vai trò</h3>
+                    <p class="text-sm text-base-content/70">Quản lý vai trò trong hệ thống.</p>
+                </div>
+            </a>
+        }
+        @if (access.Permissions)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Permissions" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("permissions", "size-5")</span>
+                    <h3 class="card-title text-base">Phân quyền</h3>
+                    <p class="text-sm text-base-content/70">Gán quyền cho từng vai trò.</p>
+                </div>
+            </a>
+        }
+        @if (access.Users)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Users" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("users", "size-5")</span>
+                    <h3 class="card-title text-base">Người dùng</h3>
+                    <p class="text-sm text-base-content/70">Quản lý tài khoản người dùng.</p>
+                </div>
+            </a>
+        }
+        @if (access.Audit)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Audit" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("audit", "size-5")</span>
+                    <h3 class="card-title text-base">Nhật ký</h3>
+                    <p class="text-sm text-base-content/70">Theo dõi nhật ký hoạt động.</p>
+                </div>
+            </a>
+        }
+        @if (access.Faculties)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Faculties" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("faculties", "size-5")</span>
+                    <h3 class="card-title text-base">Khoa</h3>
+                    <p class="text-sm text-base-content/70">Quản lý danh mục khoa.</p>
+                </div>
+            </a>
+        }
+        @if (access.Students)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Students" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("students", "size-5")</span>
+                    <h3 class="card-title text-base">Sinh viên</h3>
+                    <p class="text-sm text-base-content/70">Quản lý và import sinh viên.</p>
+                </div>
+            </a>
+        }
+    </div>
+</section>
