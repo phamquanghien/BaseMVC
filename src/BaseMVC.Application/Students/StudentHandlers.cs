@@ -32,6 +32,12 @@ public sealed class DeleteStudentHandler(IStudentManagementService service) : IR
         service.DeleteAsync(request.Id, request.ActorUserId, cancellationToken);
 }
 
+public sealed class GetStudentImportTemplateHandler(IStudentImportService service) : IRequestHandler<GetStudentImportTemplateQuery, byte[]>
+{
+    public Task<byte[]> Handle(GetStudentImportTemplateQuery request, CancellationToken cancellationToken) =>
+        Task.FromResult(service.BuildTemplate());
+}
+
 public sealed class ImportStudentsHandler(IStudentImportService service) : IRequestHandler<ImportStudentsCommand, StudentImportOutcome>
 {
     public Task<StudentImportOutcome> Handle(ImportStudentsCommand request, CancellationToken cancellationToken) =>

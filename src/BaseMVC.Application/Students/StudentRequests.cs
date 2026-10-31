@@ -7,4 +7,6 @@ public sealed record ListFacultyOptionsQuery : IRequest<IReadOnlyList<FacultyOpt
 public sealed record CreateStudentCommand(StudentInput Input, string? ActorUserId) : IRequest<StudentOperationResult>;
 public sealed record EditStudentCommand(int Id, StudentInput Input, string? ActorUserId) : IRequest<StudentOperationResult>;
 public sealed record DeleteStudentCommand(int Id, string? ActorUserId) : IRequest<StudentOperationResult>;
+public sealed record GetStudentImportTemplateQuery : IRequest<byte[]>;
+
 public sealed record ImportStudentsCommand(Stream Content, string? ActorUserId) : IRequest<StudentImportOutcome>;

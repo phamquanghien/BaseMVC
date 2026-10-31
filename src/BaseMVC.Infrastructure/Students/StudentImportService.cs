@@ -12,6 +12,32 @@ public sealed class StudentImportService(ApplicationDbContext dbContext) : IStud
     public const int MaxDataRows = 10000;
     private const int ColumnCount = 7;
 
+    public byte[] BuildTemplate()
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Students");
+        var headers = new[] { "StudentCode", "LastName", "FirstName", "Gender", "DateOfBirth", "ClassCode", "FacultyCode" };
+        for (var i = 0; i < headers.Length; i++)
+            sheet.Cell(1, i + 1).SetValue(headers[i]);
+        sheet.Row(1).Style.Font.Bold = true;
+
+        // Text format keeps dd/mm/yyyy and leading zeros intact when users type values.
+        sheet.Column(1).Style.NumberFormat.Format = "@";
+        sheet.Column(5).Style.NumberFormat.Format = "@";
+        sheet.Cell(2, 1).SetValue("CTTT-10210104");
+        sheet.Cell(2, 2).SetValue("Nguyễn Văn");
+        sheet.Cell(2, 3).SetValue("An");
+        sheet.Cell(2, 4).SetValue("1");
+        sheet.Cell(2, 5).SetValue("20/05/2004");
+        sheet.Cell(2, 6).SetValue("CTTT01");
+        sheet.Cell(2, 7).SetValue("CT");
+        sheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
     public async Task<StudentImportOutcome> ImportAsync(Stream content, string? actorUserId, CancellationToken cancellationToken)
     {
         IXLWorksheet worksheet;

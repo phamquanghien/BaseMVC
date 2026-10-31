@@ -149,6 +149,7 @@
                     File .xlsx (tối đa 5 MB, tối đa 10.000 dòng dữ liệu), dòng đầu là tiêu đề. Các cột theo thứ tự:
                     <span class="font-mono">StudentCode, LastName, FirstName, Gender (TRUE/FALSE hoặc 1/0), DateOfBirth (dd/mm/yyyy), ClassCode, FacultyCode</span>.
                     Dòng lỗi sẽ được bỏ qua và báo cáo; dòng hợp lệ vẫn được lưu.
+                    <a class="link link-primary" href="@Url.Action("ImportTemplate", "Students", new { area = "" })">Tải file mẫu</a>
                 </p>
                 <div class="alert alert-error mt-4 hidden" role="alert" data-student-import-error></div>
                 <input type="file" accept=".xlsx" class="file-input file-input-bordered mt-4 w-full" aria-label="Chọn file Excel" data-student-import-file />

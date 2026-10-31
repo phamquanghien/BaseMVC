@@ -280,6 +280,44 @@ public sealed partial class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Student_import_template_requires_permission_and_can_be_imported()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        const string email = "student-template-limited@example.test";
+        const string password = "LimitedUser123!";
+        await factory.CreateUserAsync(email, password);
+        await factory.CreateRoleForUserAsync(email, "StudentTemplateLimited");
+        await factory.SetRolePermissionAsync("StudentTemplateLimited", "Permissions.Students.Read", grant: true);
+        using var limited = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await SignInAsync(limited, email, password);
+        using var forbidden = await limited.GetAsync("/Admin/Students/import/template");
+        Assert.Equal(HttpStatusCode.Forbidden, forbidden.StatusCode);
+
+        using var anonymous = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        using var unauthorized = await anonymous.GetAsync("/Admin/Students/import/template");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthorized.StatusCode);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
+        var token = await GetAdminPageTokenAsync(client, "/Admin/Students");
+        using var faculty = await PostWithTokenAsync(
+            client, "/Admin/Faculties", token, new { facultyCode = "CT", facultyName = "Công nghệ" });
+        Assert.Equal(HttpStatusCode.Created, faculty.StatusCode);
+
+        using var template = await client.GetAsync("/Admin/Students/import/template");
+        Assert.Equal(HttpStatusCode.OK, template.StatusCode);
+        Assert.Equal("StudentImportTemplate.xlsx", template.Content.Headers.ContentDisposition?.FileName);
+        var bytes = await template.Content.ReadAsByteArrayAsync();
+
+        using var import = await PostImportAsync(client, token, bytes);
+        Assert.Equal(HttpStatusCode.OK, import.StatusCode);
+        var result = await import.Content.ReadFromJsonAsync<StudentImportResultDto>();
+        Assert.NotNull(result);
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
     public async Task Student_import_saves_valid_rows_and_reports_invalid_rows()
     {
         using var factory = new UserManagementWebApplicationFactory();

@@ -41,6 +41,14 @@ public sealed class StudentsController(ISender sender) : Controller
     }
 
     [Authorize(Policy = "Permissions.Students.Create")]
+    [HttpGet("import/template")]
+    public async Task<IActionResult> ImportTemplate(CancellationToken cancellationToken) =>
+        File(
+            await sender.Send(new GetStudentImportTemplateQuery(), cancellationToken),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "StudentImportTemplate.xlsx");
+
+    [Authorize(Policy = "Permissions.Students.Create")]
     [HttpPost("import")]
     [ValidateAntiForgeryToken]
     [RequestSizeLimit(MaxImportFileBytes)]
