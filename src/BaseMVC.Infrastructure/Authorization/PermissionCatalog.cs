@@ -26,6 +26,10 @@ public static class PermissionCatalog
         new("Faculties", "Create"),
         new("Faculties", "Update"),
         new("Faculties", "Delete"),
+        new("ExamTypes", "Read"),
+        new("ExamTypes", "Create"),
+        new("ExamTypes", "Update"),
+        new("ExamTypes", "Delete"),
         new("Students", "Read"),
         new("Students", "Create"),
         new("Students", "Update"),
@@ -38,7 +42,7 @@ public static class PermissionCatalog
             IdentitySeedRoles.SuperAdmin => All,
             IdentitySeedRoles.Administrator => All
                 .Where(permission =>
-                    permission.Module is "Users" or "Roles" or "Faculties" or "Students"
+                    permission.Module is "Users" or "Roles" or "Faculties" or "Students" or "ExamTypes"
                     || permission is { Module: "Access", Action: "Read" })
                 .ToArray(),
             _ => []

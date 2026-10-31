@@ -65,6 +65,16 @@
                 </div>
             </a>
         }
+        @if (access.ExamTypes)
+        {
+            <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="ExamTypes" asp-action="Index">
+                <div class="card-body gap-2">
+                    <span class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary">@Icon("examTypes", "size-5")</span>
+                    <h3 class="card-title text-base">Loại kỳ thi</h3>
+                    <p class="text-sm text-base-content/70">Quản lý danh mục loại kỳ thi.</p>
+                </div>
+            </a>
+        }
         @if (access.Students)
         {
             <a class="card border border-base-300 bg-base-100 transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md" asp-area="" asp-controller="Students" asp-action="Index">

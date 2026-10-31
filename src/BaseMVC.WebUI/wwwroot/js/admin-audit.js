@@ -46,6 +46,9 @@
     RoleUpdated: "Cập nhật role",
     RoleDeleted: "Xóa role",
     RolePermissionsUpdated: "Cập nhật quyền role",
+    ExamTypeCreated: "Tạo loại kỳ thi",
+    ExamTypeUpdated: "Cập nhật loại kỳ thi",
+    ExamTypeDeleted: "Xóa loại kỳ thi",
   };
   const outcomeLabels = {
     Succeeded: "Thành công",

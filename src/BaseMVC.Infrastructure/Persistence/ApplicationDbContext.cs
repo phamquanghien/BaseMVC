@@ -1,3 +1,4 @@
+using BaseMVC.Domain.ExamTypes;
 using BaseMVC.Domain.Faculties;
 using BaseMVC.Domain.Students;
 using BaseMVC.Infrastructure.Identity;
@@ -12,6 +13,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<AuditLogEntry> AuditLogEntries => Set<AuditLogEntry>();
 
     public DbSet<Faculty> Faculties => Set<Faculty>();
+
+    public DbSet<ExamType> ExamTypes => Set<ExamType>();
 
     public DbSet<Student> Students => Set<Student>();
 
@@ -31,6 +34,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(faculty => faculty.CreatedBy).HasMaxLength(450);
             entity.Property(faculty => faculty.LastModifiedBy).HasMaxLength(450);
             entity.HasIndex(faculty => faculty.FacultyCode).IsUnique();
+        });
+
+        builder.Entity<ExamType>(entity =>
+        {
+            entity.HasKey(examType => examType.Id);
+            entity.Property(examType => examType.Name).HasMaxLength(ExamType.NameMaxLength).IsRequired();
+            entity.Property(examType => examType.CreatedBy).HasMaxLength(450);
+            entity.Property(examType => examType.LastModifiedBy).HasMaxLength(450);
+            entity.HasIndex(examType => examType.Name).IsUnique();
         });
 
         builder.Entity<Student>(entity =>

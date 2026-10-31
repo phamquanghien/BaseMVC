@@ -14,5 +14,8 @@ public enum AuditEventType
     RoleCreated,
     RoleUpdated,
     RoleDeleted,
-    RolePermissionsUpdated
+    RolePermissionsUpdated,
+    ExamTypeCreated,
+    ExamTypeUpdated,
+    ExamTypeDeleted
 }

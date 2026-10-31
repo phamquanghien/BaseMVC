@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using BaseMVC.Infrastructure.Authorization;
+using BaseMVC.Infrastructure.ExamTypes;
 using BaseMVC.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public sealed class IdentitySeeder(
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
+        await ExamTypeSeeder.SeedAsync(dbContext, cancellationToken);
 
         foreach (var roleName in IdentitySeedRoles.All)
         {
