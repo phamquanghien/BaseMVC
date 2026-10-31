@@ -1,0 +1,127 @@
+@inject Microsoft.AspNetCore.Authorization.IAuthorizationService AuthorizationService
+@{
+    ViewData["Title"] = "Quản lý kỳ thi";
+    var canCreateExam = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Exams.Create")).Succeeded;
+    var canUpdateExam = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Exams.Update")).Succeeded;
+    var canDeleteExam = (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Exams.Delete")).Succeeded;
+}
+
+<section class="space-y-6" data-exam-manager
+         data-search-url="@Url.Action("Search", "Exams", new { area = "" })"
+         data-exam-types-url="@Url.Action("ExamTypes", "Exams", new { area = "" })"
+         data-create-url="@Url.Action("Create", "Exams", new { area = "" })"
+         data-edit-url-template="@Url.Action("Edit", "Exams", new { area = "", id = 0 })"
+         data-delete-url-template="@Url.Action("Delete", "Exams", new { area = "", id = 0 })"
+         data-can-create="@canCreateExam.ToString().ToLowerInvariant()"
+         data-can-update="@canUpdateExam.ToString().ToLowerInvariant()"
+         data-can-delete="@canDeleteExam.ToString().ToLowerInvariant()">
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <div class="badge badge-primary badge-outline">Dữ liệu</div>
+            <h1 class="mt-3 text-3xl font-bold tracking-tight">Quản lý kỳ thi</h1>
+            <p class="mt-2 text-base-content/70">Tìm kiếm, lọc và quản lý danh sách kỳ thi.</p>
+        </div>
+        @if (canCreateExam)
+        {
+            <button type="button" class="btn btn-primary" data-exam-create>
+                <span aria-hidden="true">＋</span> Thêm kỳ thi
+            </button>
+        }
+    </div>
+
+    <div class="card border border-base-300 bg-base-100 shadow-sm">
+        <div class="card-body gap-5 p-4 sm:p-6">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                    <label class="input input-bordered flex w-full items-center gap-2 sm:w-72">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7" stroke-width="2" />
+                            <path stroke-linecap="round" stroke-width="2" d="m20 20-4-4" />
+                        </svg>
+                        <input type="search" class="grow" placeholder="Tìm theo tên kỳ thi..." aria-label="Tìm theo tên kỳ thi" data-exam-search />
+                    </label>
+                    <select class="select select-bordered w-full sm:w-56" aria-label="Lọc theo loại kỳ thi" data-exam-type-filter>
+                        <option value="">Tất cả loại kỳ thi</option>
+                    </select>
+                    <select class="select select-bordered w-full sm:w-52" aria-label="Lọc theo trạng thái" data-exam-status-filter>
+                        <option value="">Tất cả trạng thái</option>
+                    </select>
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" class="checkbox checkbox-sm" data-exam-include-deleted />
+                        <span>Hiện kỳ thi đã xóa</span>
+                    </label>
+                </div>
+                <label class="flex items-center gap-2 text-sm">
+                    <span>Số dòng</span>
+                    <select class="select select-bordered select-sm" aria-label="Số kỳ thi mỗi trang" data-exam-page-size>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="alert alert-error hidden" role="alert" data-exam-error></div>
+            <div class="overflow-x-auto rounded-box border border-base-300">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Tên kỳ thi</th>
+                            <th>Loại kỳ thi</th>
+                            <th>Trạng thái</th>
+                            <th class="text-right">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody data-exam-rows>
+                        <tr><td colspan="4" class="py-10 text-center text-base-content/60">Đang tải danh sách kỳ thi...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p class="text-sm text-base-content/70" aria-live="polite" data-exam-count></p>
+                <div class="join self-end" aria-label="Phân trang kỳ thi">
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang trước" data-exam-previous>«</button>
+                    <button type="button" class="btn btn-sm join-item no-animation" aria-live="polite" data-exam-page-label>Trang 1 / 1</button>
+                    <button type="button" class="btn btn-sm join-item" aria-label="Trang sau" data-exam-next>»</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form id="exam-antiforgery" asp-controller="Account" asp-action="Login" method="post" asp-antiforgery="false" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <dialog class="modal" data-exam-modal>
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold" data-exam-modal-title>Thêm kỳ thi</h2>
+            <p class="mt-2 text-sm text-base-content/70" data-exam-modal-description>Nhập thông tin kỳ thi mới.</p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-exam-modal-error></div>
+            <div class="mt-5 space-y-4" data-exam-fields>
+                <div>
+                    <label for="exam-name" class="label"><span class="label-text font-medium">Tên kỳ thi</span></label>
+                    <input id="exam-name" name="Name" type="text" class="input input-bordered w-full" maxlength="500" autocomplete="off" />
+                </div>
+                <div>
+                    <label for="exam-type" class="label"><span class="label-text font-medium">Loại kỳ thi</span></label>
+                    <select id="exam-type" name="ExamTypeId" class="select select-bordered w-full"></select>
+                    <p class="mt-1 hidden text-xs text-base-content/60" data-exam-type-hint>Chỉ đổi được loại kỳ thi khi kỳ thi ở trạng thái “Chưa bắt đầu”.</p>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-exam-cancel>Hủy</button>
+                <button type="button" class="btn btn-primary" data-exam-submit>Lưu</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+</section>
+
+@section Scripts {
+    <script src="~/js/admin-common.js" asp-append-version="true"></script>
+    <script src="~/js/admin-exams.js" asp-append-version="true"></script>
+}

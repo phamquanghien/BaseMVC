@@ -2299,6 +2299,7 @@ public sealed partial class UserManagementEndpointTests
             RemoteIpAddress = remoteIpAddress;
             _enableHttpsRedirection = enableHttpsRedirection;
             _connection.Open();
+            _connection.CreateFunction("lower", (string? value) => value?.ToLowerInvariant(), isDeterministic: true);
         }
 
         private int LoginPermitLimit { get; }

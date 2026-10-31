@@ -1,4 +1,5 @@
 using BaseMVC.Domain.ExamTypes;
+using BaseMVC.Domain.Exams;
 using BaseMVC.Domain.Faculties;
 using BaseMVC.Domain.Students;
 using BaseMVC.Infrastructure.Identity;
@@ -15,6 +16,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
     public DbSet<Faculty> Faculties => Set<Faculty>();
 
     public DbSet<ExamType> ExamTypes => Set<ExamType>();
+
+    public DbSet<Exam> Exams => Set<Exam>();
 
     public DbSet<Student> Students => Set<Student>();
 
@@ -34,6 +37,17 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(faculty => faculty.CreatedBy).HasMaxLength(450);
             entity.Property(faculty => faculty.LastModifiedBy).HasMaxLength(450);
             entity.HasIndex(faculty => faculty.FacultyCode).IsUnique();
+        });
+
+        builder.Entity<Exam>(entity =>
+        {
+            entity.HasKey(exam => exam.Id);
+            entity.Property(exam => exam.Name).HasMaxLength(Exam.NameMaxLength).IsRequired();
+            entity.Property(exam => exam.Status).HasConversion<string>().HasMaxLength(Exam.StatusMaxLength).IsRequired();
+            entity.Property(exam => exam.CreatedBy).HasMaxLength(450);
+            entity.Property(exam => exam.LastModifiedBy).HasMaxLength(450);
+            entity.HasOne(exam => exam.ExamType).WithMany().HasForeignKey(exam => exam.ExamTypeId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasQueryFilter(exam => !exam.IsDeleted);
         });
 
         builder.Entity<ExamType>(entity =>

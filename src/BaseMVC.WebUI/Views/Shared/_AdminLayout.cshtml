@@ -88,6 +88,10 @@
                                     {
                                         <li><a asp-area="" asp-controller="ExamTypes" asp-action="Index" class="@(IsActive(ViewContext, "ExamTypes") ? "menu-active" : "")">@Icon("examTypes") Loại kỳ thi</a></li>
                                     }
+                                    @if (access.Exams)
+                                    {
+                                        <li><a asp-area="" asp-controller="Exams" asp-action="Index" class="@(IsActive(ViewContext, "Exams") ? "menu-active" : "")">@Icon("exams") Kỳ thi</a></li>
+                                    }
                                     @if (access.Students)
                                     {
                                         <li><a asp-area="" asp-controller="Students" asp-action="Index" class="@(IsActive(ViewContext, "Students") ? "menu-active" : "")">@Icon("students") Sinh viên</a></li>

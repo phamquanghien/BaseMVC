@@ -50,6 +50,49 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                     b.ToTable("ExamTypes");
                 });
 
+            modelBuilder.Entity("BaseMVC.Domain.Exams.Exam", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ExamTypeId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExamTypeId");
+
+                    b.ToTable("Exams");
+                });
+
             modelBuilder.Entity("BaseMVC.Domain.Faculties.Faculty", b =>
                 {
                     b.Property<int>("Id")
@@ -400,6 +443,17 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("BaseMVC.Domain.Exams.Exam", b =>
+                {
+                    b.HasOne("BaseMVC.Domain.ExamTypes.ExamType", "ExamType")
+                        .WithMany()
+                        .HasForeignKey("ExamTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ExamType");
                 });
 
             modelBuilder.Entity("BaseMVC.Domain.Students.Student", b =>

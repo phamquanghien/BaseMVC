@@ -49,6 +49,9 @@
     ExamTypeCreated: "Tạo loại kỳ thi",
     ExamTypeUpdated: "Cập nhật loại kỳ thi",
     ExamTypeDeleted: "Xóa loại kỳ thi",
+    ExamCreated: "Tạo kỳ thi",
+    ExamUpdated: "Cập nhật kỳ thi",
+    ExamDeleted: "Xóa kỳ thi",
   };
   const outcomeLabels = {
     Succeeded: "Thành công",

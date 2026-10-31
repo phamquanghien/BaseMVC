@@ -102,7 +102,10 @@ public sealed class ExamTypeManagementService(ApplicationDbContext dbContext, IA
         var examType = await dbContext.ExamTypes.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (examType is null) return ExamTypeOperationResult.NotFound("Không tìm thấy loại kỳ thi.");
 
-        // TODO(step 2): reject deletion when exams already reference this type.
+        // Soft-deleted exams still reference the type, so they must be counted too.
+        if (await dbContext.Exams.IgnoreQueryFilters().AnyAsync(exam => exam.ExamTypeId == id, cancellationToken))
+            return ExamTypeOperationResult.Conflict("Không thể xóa loại kỳ thi đã có kỳ thi thuộc loại này.");
+
         dbContext.ExamTypes.Remove(examType);
         await dbContext.SaveChangesAsync(cancellationToken);
         await auditLogWriter.WriteAsync(AuditEventType.ExamTypeDeleted, AuditOutcome.Succeeded, actorUserId, cancellationToken: cancellationToken);

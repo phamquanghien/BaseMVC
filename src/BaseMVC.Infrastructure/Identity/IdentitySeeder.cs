@@ -19,7 +19,6 @@ public sealed class IdentitySeeder(
     public async Task SeedAsync(CancellationToken cancellationToken = default)
     {
         await dbContext.Database.MigrateAsync(cancellationToken);
-        await ExamTypeSeeder.SeedAsync(dbContext, cancellationToken);
 
         foreach (var roleName in IdentitySeedRoles.All)
         {

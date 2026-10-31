@@ -114,7 +114,7 @@ public sealed partial class UserManagementEndpointTests
 
         var paged = await client.GetFromJsonAsync<ExamTypeSearchDto>("/Admin/ExamTypes/search?page=1&pageSize=1");
         Assert.NotNull(paged);
-        Assert.Equal(7, paged.TotalCount);
+        Assert.Equal(2, paged.TotalCount);
         Assert.Single(paged.Items);
 
         using var deleteResponse = await PostWithTokenAsync(client, $"/Admin/ExamTypes/{created.Id}/delete", token);
@@ -122,20 +122,6 @@ public sealed partial class UserManagementEndpointTests
 
         using var deleteMissing = await PostWithTokenAsync(client, $"/Admin/ExamTypes/{created.Id}/delete", token);
         Assert.Equal(HttpStatusCode.NotFound, deleteMissing.StatusCode);
-    }
-
-    [Fact]
-    public async Task ExamType_seed_adds_default_types_once()
-    {
-        using var factory = new UserManagementWebApplicationFactory();
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
-        await SignInAsync(client, factory.SuperAdminEmail, factory.SuperAdminPassword);
-
-        var all = await client.GetFromJsonAsync<ExamTypeSearchDto>("/Admin/ExamTypes/search?page=1&pageSize=50");
-        Assert.NotNull(all);
-        Assert.Equal(5, all.TotalCount);
-        Assert.Contains(all.Items, item => item.Name == "Chuẩn đầu ra CNTT");
-        Assert.Contains(all.Items, item => item.Name == "Tiếng Anh Tăng Cường");
     }
 
     [Fact]
