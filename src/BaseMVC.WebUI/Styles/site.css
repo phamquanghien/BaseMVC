@@ -1,2 +1,16 @@
 @import "tailwindcss";
 @plugin "daisyui";
+
+/* Navbar menus: use the primary colour instead of daisyUI's default neutral (black) for active/pressed items. */
+.menu :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)).menu-active,
+.menu :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)):active,
+.menu :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)).menu-focus,
+.menu :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)):focus-visible {
+    background-color: color-mix(in oklab, var(--color-primary) 22%, transparent);
+    color: color-mix(in oklab, var(--color-primary) 70%, black);
+    box-shadow: none;
+}
+
+.menu :where(li:not(.menu-title) > *:not(ul, details, .menu-title, .btn)):not(.menu-active):hover {
+    background-color: color-mix(in oklab, var(--color-primary) 12%, transparent);
+}

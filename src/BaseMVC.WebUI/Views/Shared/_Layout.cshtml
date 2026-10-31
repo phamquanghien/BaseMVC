@@ -13,6 +13,39 @@
         && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Faculties.Read")).Succeeded;
     var canReadStudents = User.Identity?.IsAuthenticated == true
         && (await AuthorizationService.AuthorizeAsync(User, resource: null, "Permissions.Students.Read")).Succeeded;
+    var showSystemMenu = canReadRoles || canReadPermissions || canReadUsers || canReadAudit;
+    var showDataMenu = canReadFaculties || canReadStudents;
+    var systemActive = IsActive("Roles", "Permissions", "Users", "Audit");
+    var dataActive = IsActive("Faculties", "Students");
+    var homeActive = IsActive("Home");
+}
+@functions {
+    private static readonly Dictionary<string, string> NavIcons = new()
+    {
+        ["home"] = "m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25",
+        ["roles"] = "M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z",
+        ["permissions"] = "M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z",
+        ["users"] = "M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z",
+        ["audit"] = "M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z",
+        ["faculties"] = "M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z",
+        ["students"] = "M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5",
+        ["system"] = "M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 0 1 1.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.559.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.894.149c-.424.07-.764.383-.929.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 0 1-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.398.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 0 1-.12-1.45l.527-.737c.25-.35.272-.806.108-1.204-.165-.397-.506-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.108-1.204l-.526-.738a1.125 1.125 0 0 1 .12-1.45l.773-.773a1.125 1.125 0 0 1 1.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894Z M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+        ["data"] = "M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125",
+        ["password"] = "M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z",
+        ["logout"] = "M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9",
+        ["chevron"] = "m19.5 8.25-7.5 7.5-7.5-7.5",
+        ["menu"] = "M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5",
+        ["close"] = "M6 18 18 6M6 6l12 12"
+    };
+
+    private Microsoft.AspNetCore.Html.IHtmlContent Icon(string name, string cssClass = "size-4") =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            $"<svg xmlns=\"http://www.w3.org/2000/svg\" class=\"{cssClass} shrink-0\" fill=\"none\" viewBox=\"0 0 24 24\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"{NavIcons[name]}\" /></svg>");
+
+    private string CurrentController => ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+
+    private bool IsActive(params string[] controllers) =>
+        controllers.Any(controller => string.Equals(controller, CurrentController, StringComparison.OrdinalIgnoreCase));
 }
 <html lang="vi" data-theme="light">
 
@@ -26,120 +59,148 @@
 
 <body class="min-h-screen bg-base-200 text-base-content">
     <div class="flex min-h-screen flex-col">
-        <header class="sticky top-0 z-20 border-b border-base-300 bg-base-100/95 shadow-sm backdrop-blur">
-            <nav class="navbar mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Điều hướng chính">
-                <div class="navbar-start">
+        <header class="sticky top-0 z-20 border-b border-base-300 bg-base-100/90 shadow-sm backdrop-blur">
+            <div class="h-0.5 bg-gradient-to-r from-primary via-secondary to-accent" aria-hidden="true"></div>
+            <nav class="navbar mx-auto w-full max-w-7xl gap-2 px-4 sm:px-6 lg:px-8" aria-label="Điều hướng chính">
+                <div class="navbar-start w-auto flex-1">
                     <a class="btn btn-ghost gap-2 px-2 text-lg font-bold tracking-tight" asp-area=""
                        asp-controller="Home" asp-action="Index" aria-label="BaseMVC - Trang chủ">
-                        <span class="grid size-9 place-items-center rounded-xl bg-primary text-primary-content">B</span>
+                        <span class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-sm">B</span>
                         <span>BaseMVC</span>
                     </a>
                 </div>
-                <div class="navbar-center hidden md:flex">
-                    <ul class="menu menu-horizontal gap-1 px-1">
-                        <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
-                        <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
-                        @if (canReadRoles)
+                <div class="navbar-end w-auto gap-1 sm:gap-2">
+                    <ul class="menu menu-horizontal hidden items-center gap-1 px-1 md:flex">
+                        <li><a asp-area="" asp-controller="Home" asp-action="Index" class="@(homeActive ? "menu-active" : "")">@Icon("home") Trang chủ</a></li>
+                        @if (showSystemMenu)
                         {
-                            <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
+                            <li class="dropdown dropdown-hover">
+                                <div tabindex="0" role="button" aria-haspopup="true" class="@(systemActive ? "menu-active" : "")">@Icon("system") Hệ thống @Icon("chevron", "size-3")</div>
+                                <ul tabindex="0" class="menu dropdown-content z-50 mt-0 w-52 gap-1 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                                    @if (canReadRoles)
+                                    {
+                                        <li><a asp-controller="Roles" asp-action="Index" class="@(IsActive("Roles") ? "menu-active" : "")">@Icon("roles") Vai trò</a></li>
+                                    }
+                                    @if (canReadPermissions)
+                                    {
+                                        <li><a asp-controller="Permissions" asp-action="Index" class="@(IsActive("Permissions") ? "menu-active" : "")">@Icon("permissions") Phân quyền</a></li>
+                                    }
+                                    @if (canReadUsers)
+                                    {
+                                        <li><a asp-controller="Users" asp-action="Index" class="@(IsActive("Users") ? "menu-active" : "")">@Icon("users") Người dùng</a></li>
+                                    }
+                                    @if (canReadAudit)
+                                    {
+                                        <li><a asp-controller="Audit" asp-action="Index" class="@(IsActive("Audit") ? "menu-active" : "")">@Icon("audit") Nhật ký</a></li>
+                                    }
+                                </ul>
+                            </li>
                         }
-                        @if (canReadUsers)
+                        @if (showDataMenu)
                         {
-                            <li><a asp-controller="Users" asp-action="Index">Người dùng</a></li>
-                        }
-                        @if (canReadFaculties)
-                        {
-                            <li><a asp-controller="Faculties" asp-action="Index">Khoa</a></li>
-                        }
-                        @if (canReadStudents)
-                        {
-                            <li><a asp-controller="Students" asp-action="Index">Sinh viên</a></li>
-                        }
-                        @if (canReadPermissions)
-                        {
-                            <li><a asp-controller="Permissions" asp-action="Index">Phân quyền</a></li>
-                        }
-                        @if (canReadAudit)
-                        {
-                            <li><a asp-controller="Audit" asp-action="Index">Nhật ký</a></li>
+                            <li class="dropdown dropdown-hover">
+                                <div tabindex="0" role="button" aria-haspopup="true" class="@(dataActive ? "menu-active" : "")">@Icon("data") Dữ liệu @Icon("chevron", "size-3")</div>
+                                <ul tabindex="0" class="menu dropdown-content z-50 mt-0 w-52 gap-1 rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                                    @if (canReadFaculties)
+                                    {
+                                        <li><a asp-controller="Faculties" asp-action="Index" class="@(IsActive("Faculties") ? "menu-active" : "")">@Icon("faculties") Khoa</a></li>
+                                    }
+                                    @if (canReadStudents)
+                                    {
+                                        <li><a asp-controller="Students" asp-action="Index" class="@(IsActive("Students") ? "menu-active" : "")">@Icon("students") Sinh viên</a></li>
+                                    }
+                                </ul>
+                            </li>
                         }
                     </ul>
-                </div>
-                <div class="navbar-end gap-2">
                     @if (User.Identity?.IsAuthenticated == true)
                     {
-                        <span class="hidden max-w-40 truncate text-sm text-base-content/70 sm:inline"
-                              title="@User.Identity.Name">@User.Identity.Name</span>
-                        <a class="btn btn-ghost btn-sm hidden sm:inline-flex" asp-controller="Account"
-                           asp-action="ChangePassword">Đổi mật khẩu</a>
-                        <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false"
-                              class="hidden sm:block">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="returnUrl" value="/" />
-                            <button type="submit" class="btn btn-outline btn-sm">Đăng xuất</button>
-                        </form>
+                        var accountName = User.Identity.Name ?? "?";
+                        var initial = char.ToUpperInvariant(accountName[0]);
+                        <details class="dropdown dropdown-end" data-nav-dropdown>
+                            <summary class="btn btn-ghost btn-circle avatar list-none" aria-label="Tài khoản" title="@accountName">
+                                <span class="grid size-9 place-items-center rounded-full bg-gradient-to-br from-primary to-secondary font-semibold text-primary-content ring-2 ring-primary/20">@initial</span>
+                            </summary>
+                            <div class="dropdown-content z-50 mt-3 w-72 overflow-hidden rounded-box border border-base-300 bg-base-100 shadow-xl">
+                                <div class="flex items-center gap-3 bg-base-200/70 px-4 py-3">
+                                    <span class="grid size-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-secondary font-semibold text-primary-content">@initial</span>
+                                    <div class="min-w-0">
+                                        <p class="text-xs text-base-content/60">Đang đăng nhập</p>
+                                        <p class="truncate text-sm font-semibold" title="@accountName">@accountName</p>
+                                    </div>
+                                </div>
+                                <ul class="menu w-full p-2">
+                                    <li><a asp-controller="Account" asp-action="ChangePassword">@Icon("password") Đổi mật khẩu</a></li>
+                                    <li>
+                                        <form asp-controller="Account" asp-action="Logout" method="post" asp-antiforgery="false" class="p-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="returnUrl" value="/" />
+                                            <button type="submit" class="flex w-full items-center gap-2 px-3 py-2 text-error">@Icon("logout") Đăng xuất</button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
+                        </details>
                     }
                     else
                     {
-                        <a class="btn btn-primary btn-sm hidden sm:inline-flex" asp-controller="Account"
-                           asp-action="Login">Đăng nhập</a>
+                        <a class="btn btn-primary btn-sm" asp-controller="Account" asp-action="Login">Đăng nhập</a>
                     }
-                    <div class="dropdown dropdown-end md:hidden">
-                        <button class="btn btn-ghost btn-square" type="button" aria-label="Mở menu"
-                                aria-haspopup="true">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24"
-                                 stroke="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                      d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
-                        </button>
-                        <ul
-                            class="menu dropdown-content z-30 mt-3 w-52 rounded-box border border-base-300 bg-base-100 p-2 shadow-lg">
-                            <li><a asp-area="" asp-controller="Home" asp-action="Index">Tổng quan</a></li>
-                            <li><a asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a></li>
-                            @if (canReadRoles)
+                    <details class="dropdown dropdown-end md:hidden" data-nav-dropdown>
+                        <summary class="btn btn-ghost btn-square list-none" aria-label="Mở hoặc đóng menu">
+                            <span data-nav-icon-open>@Icon("menu", "size-6")</span>
+                            <span class="hidden" data-nav-icon-close>@Icon("close", "size-6")</span>
+                        </summary>
+                        <div class="dropdown-content z-50 mt-3 w-[min(20rem,calc(100vw-2rem))] max-h-[70vh] overflow-y-auto rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                            <ul class="menu w-full gap-1 p-0">
+                                <li><a asp-area="" asp-controller="Home" asp-action="Index" class="@(homeActive ? "menu-active" : "")">@Icon("home") Trang chủ</a></li>
+                            @if (showSystemMenu)
                             {
-                                <li><a asp-controller="Roles" asp-action="Index">Vai trò</a></li>
-                            }
-                            @if (canReadUsers)
-                            {
-                                <li><a asp-controller="Users" asp-action="Index">Người dùng</a></li>
-                            }
-                            @if (canReadFaculties)
-                            {
-                                <li><a asp-controller="Faculties" asp-action="Index">Khoa</a></li>
-                            }
-                            @if (canReadStudents)
-                            {
-                                <li><a asp-controller="Students" asp-action="Index">Sinh viên</a></li>
-                            }
-                            @if (canReadPermissions)
-                            {
-                                <li><a asp-controller="Permissions" asp-action="Index">Phân quyền</a></li>
-                            }
-                            @if (canReadAudit)
-                            {
-                                <li><a asp-controller="Audit" asp-action="Index">Nhật ký</a></li>
-                            }
-                            @if (User.Identity?.IsAuthenticated == true)
-                            {
-                                <li><a asp-controller="Account" asp-action="ChangePassword">Đổi mật khẩu</a></li>
                                 <li>
-                                    <form asp-controller="Account" asp-action="Logout" method="post"
-                                          asp-antiforgery="false">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="returnUrl" value="/" />
-                                        <button type="submit">Đăng xuất</button>
-                                    </form>
+                                    <details open>
+                                        <summary class="font-semibold">@Icon("system") Hệ thống</summary>
+                                        <ul>
+                                            @if (canReadRoles)
+                                            {
+                                                <li><a asp-controller="Roles" asp-action="Index" class="@(IsActive("Roles") ? "menu-active" : "")">@Icon("roles") Vai trò</a></li>
+                                            }
+                                            @if (canReadPermissions)
+                                            {
+                                                <li><a asp-controller="Permissions" asp-action="Index" class="@(IsActive("Permissions") ? "menu-active" : "")">@Icon("permissions") Phân quyền</a></li>
+                                            }
+                                            @if (canReadUsers)
+                                            {
+                                                <li><a asp-controller="Users" asp-action="Index" class="@(IsActive("Users") ? "menu-active" : "")">@Icon("users") Người dùng</a></li>
+                                            }
+                                            @if (canReadAudit)
+                                            {
+                                                <li><a asp-controller="Audit" asp-action="Index" class="@(IsActive("Audit") ? "menu-active" : "")">@Icon("audit") Nhật ký</a></li>
+                                            }
+                                        </ul>
+                                    </details>
                                 </li>
                             }
-                            else
+                            @if (showDataMenu)
                             {
-                                <li><a asp-controller="Account" asp-action="Login">Đăng nhập</a></li>
-                                <li><a asp-controller="Account" asp-action="ForgotPassword">Quên mật khẩu?</a></li>
+                                <li>
+                                    <details open>
+                                        <summary class="font-semibold">@Icon("data") Dữ liệu</summary>
+                                        <ul>
+                                            @if (canReadFaculties)
+                                            {
+                                                <li><a asp-controller="Faculties" asp-action="Index" class="@(IsActive("Faculties") ? "menu-active" : "")">@Icon("faculties") Khoa</a></li>
+                                            }
+                                            @if (canReadStudents)
+                                            {
+                                                <li><a asp-controller="Students" asp-action="Index" class="@(IsActive("Students") ? "menu-active" : "")">@Icon("students") Sinh viên</a></li>
+                                            }
+                                        </ul>
+                                    </details>
+                                </li>
                             }
-                        </ul>
-                    </div>
+                            </ul>
+                        </div>
+                    </details>
                 </div>
             </nav>
         </header>
