@@ -1984,7 +1984,7 @@ public sealed partial class UserManagementEndpointTests
 
             var services = new ServiceCollection();
             services.AddLogging();
-            services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString));
+            services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(connectionString).AddInterceptors(new SqliteUnicodeLowerInterceptor()));
             await using var provider = services.BuildServiceProvider();
             var hostEnvironment = new BackupTestHostEnvironment(testDirectory.FullName);
             var backupStatus = new SqliteBackupStatus();
@@ -2452,7 +2452,7 @@ public sealed partial class UserManagementEndpointTests
                 services.RemoveAll<IDbContextOptionsConfiguration<ApplicationDbContext>>();
                 services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
                 services.RemoveAll<ApplicationDbContext>();
-                services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection));
+                services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(_connection).AddInterceptors(new SqliteUnicodeLowerInterceptor()));
                 services.Configure<HealthCheckServiceOptions>(options =>
                 {
                     foreach (var registration in options.Registrations

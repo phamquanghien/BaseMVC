@@ -14,36 +14,42 @@ public sealed class StudentManagementService(ApplicationDbContext dbContext) : I
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
 
-        var all = await (
+        var query =
             from student in dbContext.Students.AsNoTracking()
             join faculty in dbContext.Faculties.AsNoTracking() on student.FacultyCode equals faculty.FacultyCode into faculties
             from faculty in faculties.DefaultIfEmpty()
-            orderby student.StudentCode, student.Id
-            select new StudentListItem(
-                student.Id, student.StudentCode, student.LastName, student.FirstName, student.ClassCode,
-                student.FacultyCode, faculty == null ? null : faculty.FacultyName,
-                student.Gender, student.EligibleForEnglish, student.PassedLanguageRequirement,
-                student.PassedITRequirement, student.DateOfBirth, student.CreatedAtUtc, student.LastModifiedAtUtc))
-            .ToListAsync(cancellationToken);
+            select new { student, FacultyName = faculty == null ? null : faculty.FacultyName };
 
-        // SQLite only ignores case for ASCII; filter in memory so Unicode (Vietnamese) is case-insensitive too.
-        IEnumerable<StudentListItem> matches = all;
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
-            bool Has(string? value) => value?.Contains(term, StringComparison.CurrentCultureIgnoreCase) == true;
-            matches = all.Where(item =>
-                Has(item.StudentCode) || Has(item.LastName) || Has(item.FirstName) ||
-                Has($"{item.LastName} {item.FirstName}") || Has(item.ClassCode) ||
-                Has(item.FacultyCode) || Has(item.FacultyName));
+            // Case-insensitive match translated to SQL (see SqliteUnicodeLowerInterceptor for SQLite Unicode support).
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(row =>
+                row.student.StudentCode.ToLower().Contains(term) ||
+                row.student.LastName.ToLower().Contains(term) ||
+                row.student.FirstName.ToLower().Contains(term) ||
+                (row.student.LastName + " " + row.student.FirstName).ToLower().Contains(term) ||
+                row.student.ClassCode.ToLower().Contains(term) ||
+                row.student.FacultyCode.ToLower().Contains(term) ||
+                (row.FacultyName != null && row.FacultyName.ToLower().Contains(term)));
         }
 
-        var list = matches.ToList();
-        var totalPages = list.Count == 0 ? 0 : (int)Math.Ceiling(list.Count / (double)pageSize);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
         page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
-        var items = list.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
 
-        return new StudentSearchResponse(items, page, pageSize, list.Count, totalPages);
+        var items = await query
+            .OrderBy(row => row.student.StudentCode).ThenBy(row => row.student.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(row => new StudentListItem(
+                row.student.Id, row.student.StudentCode, row.student.LastName, row.student.FirstName,
+                row.student.ClassCode, row.student.FacultyCode, row.FacultyName,
+                row.student.Gender, row.student.EligibleForEnglish, row.student.PassedLanguageRequirement,
+                row.student.PassedITRequirement, row.student.DateOfBirth, row.student.CreatedAtUtc,
+                row.student.LastModifiedAtUtc))
+            .ToArrayAsync(cancellationToken);
+
+        return new StudentSearchResponse(items, page, pageSize, totalCount, totalPages);
     }
 
     public async Task<IReadOnlyList<FacultyOption>> ListFacultyOptionsAsync(CancellationToken cancellationToken) =>

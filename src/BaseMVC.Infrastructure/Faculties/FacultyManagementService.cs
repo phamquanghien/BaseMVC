@@ -11,25 +11,23 @@ public sealed class FacultyManagementService(ApplicationDbContext dbContext) : I
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
-        // SQLite only ignores case for ASCII; filter in memory so Unicode (Vietnamese) is case-insensitive too.
-        var all = await dbContext.Faculties.AsNoTracking()
-            .OrderBy(faculty => faculty.FacultyCode)
-            .ThenBy(faculty => faculty.Id)
-            .ToListAsync(cancellationToken);
-        IEnumerable<Faculty> faculties = all;
+        IQueryable<Faculty> query = dbContext.Faculties.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(search))
         {
-            var term = search.Trim();
-            faculties = all.Where(faculty =>
-                faculty.FacultyCode.Contains(term, StringComparison.CurrentCultureIgnoreCase) ||
-                faculty.FacultyName.Contains(term, StringComparison.CurrentCultureIgnoreCase));
+            // Case-insensitive match translated to SQL (see SqliteUnicodeLowerInterceptor for SQLite Unicode support).
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(faculty =>
+                faculty.FacultyCode.ToLower().Contains(term) ||
+                faculty.FacultyName.ToLower().Contains(term));
         }
 
-        var matches = faculties.ToList();
-        var totalCount = matches.Count;
+        var totalCount = await query.CountAsync(cancellationToken);
         var totalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize);
         page = totalPages == 0 ? 1 : Math.Min(page, totalPages);
-        var items = matches.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        var items = await query
+            .OrderBy(faculty => faculty.FacultyCode).ThenBy(faculty => faculty.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .ToListAsync(cancellationToken);
 
         return new FacultySearchResponse(items.Select(ToListItem).ToArray(), page, pageSize, totalCount, totalPages);
     }

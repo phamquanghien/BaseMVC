@@ -47,7 +47,7 @@ public static class DependencyInjection
         }
 
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlite(connectionString));
+            options.UseSqlite(connectionString).AddInterceptors(new SqliteUnicodeLowerInterceptor()));
 
         services
             .AddIdentity<ApplicationUser, IdentityRole>(options =>
