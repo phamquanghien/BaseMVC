@@ -20,5 +20,8 @@ public enum AuditEventType
     ExamTypeDeleted,
     ExamCreated,
     ExamUpdated,
-    ExamDeleted
+    ExamDeleted,
+    ExamStatusChanged,
+    ExamCandidatesImported,
+    ExamResultsImported
 }

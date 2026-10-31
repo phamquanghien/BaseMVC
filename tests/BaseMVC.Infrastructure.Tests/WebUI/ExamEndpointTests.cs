@@ -252,6 +252,7 @@ public sealed partial class UserManagementEndpointTests
         Assert.Contains("Permissions.Exams.Create", permissions);
         Assert.Contains("Permissions.Exams.Update", permissions);
         Assert.Contains("Permissions.Exams.Delete", permissions);
+        Assert.Contains("Permissions.Exams.ChangeStatus", permissions);
     }
 
     private static async Task<ExamDto> CreateExamAsync(HttpClient client, string token, string name, int examTypeId)

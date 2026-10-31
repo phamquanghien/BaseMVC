@@ -10,6 +10,7 @@
          data-search-url="@Url.Action("Search", "Exams", new { area = "" })"
          data-exam-types-url="@Url.Action("ExamTypes", "Exams", new { area = "" })"
          data-create-url="@Url.Action("Create", "Exams", new { area = "" })"
+         data-detail-url-template="@Url.Action("Details", "Exams", new { area = "", id = 0 })"
          data-edit-url-template="@Url.Action("Edit", "Exams", new { area = "", id = 0 })"
          data-delete-url-template="@Url.Action("Delete", "Exams", new { area = "", id = 0 })"
          data-can-create="@canCreateExam.ToString().ToLowerInvariant()"

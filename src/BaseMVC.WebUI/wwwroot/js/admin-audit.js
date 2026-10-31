@@ -52,6 +52,9 @@
     ExamCreated: "Tạo kỳ thi",
     ExamUpdated: "Cập nhật kỳ thi",
     ExamDeleted: "Xóa kỳ thi",
+    ExamStatusChanged: "Chuyển trạng thái kỳ thi",
+    ExamCandidatesImported: "Import danh sách thi",
+    ExamResultsImported: "Import kết quả thi",
   };
   const outcomeLabels = {
     Succeeded: "Thành công",

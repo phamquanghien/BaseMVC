@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IFacultyManagementService, FacultyManagementService>();
         services.AddScoped<IExamTypeManagementService, ExamTypeManagementService>();
         services.AddScoped<IExamManagementService, ExamManagementService>();
+        services.AddScoped<IExamImportService, ExamImportService>();
         services.AddScoped<IStudentManagementService, StudentManagementService>();
         services.AddScoped<IStudentImportService, StudentImportService>();
         services.AddScoped<IAuthenticationService, AuthenticationService>();

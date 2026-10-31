@@ -7,4 +7,5 @@ public sealed record SearchExamsQuery(
 public sealed record ListExamTypeOptionsQuery : IRequest<IReadOnlyList<ExamTypeOption>>;
 public sealed record CreateExamCommand(string Name, int ExamTypeId, string? ActorUserId) : IRequest<ExamOperationResult>;
 public sealed record EditExamCommand(int Id, string Name, int ExamTypeId, string? ActorUserId) : IRequest<ExamOperationResult>;
+public sealed record ChangeExamStatusCommand(int Id, string Status, string? ActorUserId) : IRequest<ExamOperationResult>;
 public sealed record DeleteExamCommand(int Id, string? ActorUserId) : IRequest<ExamOperationResult>;

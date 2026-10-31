@@ -102,13 +102,36 @@ public sealed class ExamManagementService(ApplicationDbContext dbContext, IAudit
         return ExamOperationResult.Success(await LoadItemAsync(exam.Id, cancellationToken));
     }
 
+    public async Task<ExamOperationResult> ChangeStatusAsync(int id, string status, string? actorUserId, CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse<ExamStatus>(status, ignoreCase: false, out var parsed) || !Enum.IsDefined(parsed))
+            return ExamOperationResult.BadRequest(["Trạng thái kỳ thi không hợp lệ."]);
+
+        var exam = await dbContext.Exams.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
+        if (exam is null) return ExamOperationResult.NotFound(ExamNotFoundMessage);
+
+        // Any transition is allowed so a wrong status can always be corrected.
+        if (exam.Status != parsed)
+        {
+            exam.Status = parsed;
+            exam.LastModifiedBy = actorUserId;
+            exam.LastModifiedAtUtc = DateTimeOffset.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await auditLogWriter.WriteAsync(AuditEventType.ExamStatusChanged, AuditOutcome.Succeeded, actorUserId, cancellationToken: cancellationToken);
+        }
+
+        return ExamOperationResult.Success(await LoadItemAsync(exam.Id, cancellationToken));
+    }
+
     public async Task<ExamOperationResult> DeleteAsync(int id, string? actorUserId, CancellationToken cancellationToken)
     {
         var exam = await dbContext.Exams.FirstOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (exam is null) return ExamOperationResult.NotFound(ExamNotFoundMessage);
 
-        // Exams that never started are removed; later ones are kept for history and only hidden.
-        if (exam.Status == ExamStatus.NotStarted)
+        // Exams that never started and hold no imported data are removed; the rest are kept for history and only hidden.
+        var hasData = await dbContext.ItExamResults.AnyAsync(item => item.ExamId == id, cancellationToken)
+            || await dbContext.ItExamCandidates.AnyAsync(item => item.ExamId == id, cancellationToken);
+        if (exam.Status == ExamStatus.NotStarted && !hasData)
         {
             dbContext.Exams.Remove(exam);
         }

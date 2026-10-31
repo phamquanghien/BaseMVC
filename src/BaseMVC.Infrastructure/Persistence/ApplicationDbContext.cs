@@ -19,6 +19,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<Exam> Exams => Set<Exam>();
 
+    public DbSet<ItExamCandidate> ItExamCandidates => Set<ItExamCandidate>();
+
+    public DbSet<ItExamResult> ItExamResults => Set<ItExamResult>();
+
     public DbSet<Student> Students => Set<Student>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -48,6 +52,37 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(exam => exam.LastModifiedBy).HasMaxLength(450);
             entity.HasOne(exam => exam.ExamType).WithMany().HasForeignKey(exam => exam.ExamTypeId).OnDelete(DeleteBehavior.Restrict);
             entity.HasQueryFilter(exam => !exam.IsDeleted);
+        });
+
+        builder.Entity<ItExamCandidate>(entity =>
+        {
+            entity.HasKey(candidate => candidate.Id);
+            entity.Property(candidate => candidate.Session).HasMaxLength(ItExamCandidate.ShortTextMaxLength);
+            entity.Property(candidate => candidate.ExamDuration).HasMaxLength(ItExamCandidate.ShortTextMaxLength);
+            entity.Property(candidate => candidate.ExamRoom).HasMaxLength(ItExamCandidate.ShortTextMaxLength);
+            entity.Property(candidate => candidate.RetentionNote).HasMaxLength(ItExamCandidate.NoteMaxLength);
+            entity.Property(candidate => candidate.RetainedSection).HasMaxLength(ItExamCandidate.NoteMaxLength);
+            entity.Property(candidate => candidate.CreatedBy).HasMaxLength(450);
+            entity.Property(candidate => candidate.LastModifiedBy).HasMaxLength(450);
+            entity.HasOne(candidate => candidate.Exam).WithMany().HasForeignKey(candidate => candidate.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(candidate => candidate.Student).WithMany().HasForeignKey(candidate => candidate.StudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(candidate => new { candidate.ExamId, candidate.StudentId }).IsUnique();
+            entity.HasQueryFilter(candidate => !candidate.Exam!.IsDeleted);
+        });
+
+        builder.Entity<ItExamResult>(entity =>
+        {
+            entity.HasKey(result => result.Id);
+            entity.Property(result => result.MultipleChoiceScore).HasMaxLength(ItExamResult.ScoreMaxLength);
+            entity.Property(result => result.PracticalScore).HasMaxLength(ItExamResult.ScoreMaxLength);
+            entity.Property(result => result.FinalScore).HasMaxLength(ItExamResult.ScoreMaxLength);
+            entity.Property(result => result.Note).HasMaxLength(ItExamResult.NoteMaxLength);
+            entity.Property(result => result.CreatedBy).HasMaxLength(450);
+            entity.Property(result => result.LastModifiedBy).HasMaxLength(450);
+            entity.HasOne(result => result.Exam).WithMany().HasForeignKey(result => result.ExamId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(result => result.Student).WithMany().HasForeignKey(result => result.StudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(result => new { result.ExamId, result.StudentId }).IsUnique();
+            entity.HasQueryFilter(result => !result.Exam!.IsDeleted);
         });
 
         builder.Entity<ExamType>(entity =>

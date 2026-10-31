@@ -56,6 +56,7 @@
     searchUrl: manager.dataset.searchUrl,
     examTypesUrl: manager.dataset.examTypesUrl,
     createUrl: manager.dataset.createUrl,
+    detailUrlTemplate: manager.dataset.detailUrlTemplate,
     editUrlTemplate: manager.dataset.editUrlTemplate,
     deleteUrlTemplate: manager.dataset.deleteUrlTemplate,
     canCreate: manager.dataset.canCreate === "true",
@@ -75,6 +76,7 @@
     NotStarted: "Chưa bắt đầu",
     RegistrationOpen: "Mở đăng ký",
     RegistrationCompleted: "Đã hoàn thành đăng ký",
+    AwaitingSchedule: "Chờ xếp lịch thi",
     ScheduleArranged: "Đã xếp lịch thi",
     Taken: "Đã thi (Chờ kết quả)",
     ResultsEntered: "Đã nhập kết quả",
@@ -126,7 +128,17 @@
     for (const exam of items) {
       const row = document.createElement("tr");
       if (exam.isDeleted) row.className = "opacity-60";
-      row.append(makeCell(exam.name));
+      const nameCell = makeCell("");
+      if (exam.isDeleted || !config.detailUrlTemplate) {
+        nameCell.textContent = exam.name;
+      } else {
+        const link = document.createElement("a");
+        link.className = "link link-hover font-medium";
+        link.href = examUrl(config.detailUrlTemplate, exam.id);
+        link.textContent = exam.name;
+        nameCell.append(link);
+      }
+      row.append(nameCell);
       row.append(makeCell(exam.examTypeName));
 
       const statusCell = document.createElement("td");

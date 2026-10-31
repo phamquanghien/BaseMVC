@@ -34,6 +34,7 @@ public static class PermissionCatalog
         new("Exams", "Create"),
         new("Exams", "Update"),
         new("Exams", "Delete"),
+        new("Exams", "ChangeStatus"),
         new("Students", "Read"),
         new("Students", "Create"),
         new("Students", "Update"),

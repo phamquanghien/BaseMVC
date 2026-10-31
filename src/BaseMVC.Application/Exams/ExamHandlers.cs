@@ -31,3 +31,9 @@ public sealed class DeleteExamHandler(IExamManagementService service) : IRequest
     public Task<ExamOperationResult> Handle(DeleteExamCommand request, CancellationToken cancellationToken) =>
         service.DeleteAsync(request.Id, request.ActorUserId, cancellationToken);
 }
+
+public sealed class ChangeExamStatusHandler(IExamManagementService service) : IRequestHandler<ChangeExamStatusCommand, ExamOperationResult>
+{
+    public Task<ExamOperationResult> Handle(ChangeExamStatusCommand request, CancellationToken cancellationToken) =>
+        service.ChangeStatusAsync(request.Id, request.Status, request.ActorUserId, cancellationToken);
+}
