@@ -388,6 +388,14 @@ internal static class ExamDataSpecs
         new("STT", null, "STT", "1", ColType.Ignored)
     ];
 
+    private static readonly Col[] OnlineSchedulePrefix =
+    [
+        new("STT", null, "STT", "1", ColType.Ignored),
+        new("Mã sinh viên", null, "Mã sinh viên", "CTTT-10210104", ColType.StudentCode),
+        new("Họ đệm", null, "Họ đệm", "Nguyễn Văn", ColType.Ignored),
+        new("Tên", null, "Tên", "An", ColType.Ignored)
+    ];
+
     private static readonly Col[] IdentityPerson =
     [
         new("LastName", "LastName", "Họ lót", "Nguyễn Văn", Required: true),
@@ -418,6 +426,16 @@ internal static class ExamDataSpecs
 
     private static readonly IExamDataSpec[] All =
     [
+        new ExamDataSpec<OnlineExamSchedule>(ExamDataFormat.ItMockOnline, ExamImportKind.Candidates,
+        [
+            .. OnlineSchedulePrefix,
+            new("Tên phòng thi trên Microsoft Teams", "MicrosoftTeamsRoomName", "Tên phòng thi trên Microsoft Teams", "HUMG-IT-Online-01"),
+            new("Ngày thi thử", "MockExamDate", "Ngày thi thử", "20/11/2026", ColType.Date),
+            new("Thời gian bắt đầu đăng nhập Microsoft Teams trên thiết bị 1", "TeamsDeviceLoginStartTime", "Thời gian đăng nhập Teams (thiết bị 1)", "08:00"),
+            new("Thời gian bắt đầu đăng nhập HUMG e-Exams trên thiết bị 2", "EExamsDeviceLoginStartTime", "Thời gian đăng nhập HUMG e-Exams (thiết bị 2)", "08:15"),
+            new("Ghi chú/Đợt BL", "Note", "Ghi chú/Đợt BL", "Đợt 1"),
+            new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Thực hành")
+        ]),
         new ExamDataSpec<ItExamCandidate>(ExamDataFormat.ItStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,

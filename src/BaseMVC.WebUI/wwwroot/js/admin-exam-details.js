@@ -36,6 +36,8 @@
   const formatName = $("[data-format-name]");
   const formatHint = $("[data-format-hint]");
   const candidatesCard = $("[data-candidates-card]");
+  const resultsCard = $("[data-results-card]");
+  const candidatesTitle = $("[data-candidates-title]");
   if (!(formatName instanceof HTMLElement) || !(formatHint instanceof HTMLElement)) {
     throw new Error("Exam details configuration is incomplete.");
   }
@@ -47,10 +49,11 @@
     LanguagePlacement: { label: "Kiểm tra trình độ Ngoại ngữ", note: studentNote },
     EnglishIntensive: { label: "Tiếng Anh tăng cường", note: `Chỉ hỗ trợ nhập kết quả thi (chưa có danh sách thi). ${studentNote}` },
     ItBasicCertificate: { label: "Chứng chỉ ứng dụng CNTT cơ bản", note: "Thí sinh thi độc lập, không liên kết danh sách sinh viên. Số CCCD và Số báo danh không được trùng nhau trong một kỳ thi." },
+    ItMockOnline: { label: "Thi thử chuẩn đầu ra Công nghệ thông tin (Online)", note: "Nhập lịch thi thử từ Excel; mã sinh viên liên kết với danh sách sinh viên. Định dạng ngày: dd/mm/yyyy; thời gian đăng nhập được lưu nguyên văn." },
   };
   const noFormatMessage = "Loại kỳ thi này chưa được gán định dạng dữ liệu. Vui lòng gán ở mục Loại kỳ thi để nhập và xem danh sách thi/kết quả thi.";
   // Định dạng được suy ra từ loại kỳ thi của kỳ thi; cập nhật mỗi lần tải summary.
-  const state = { format: undefined, candidates: false };
+  const state = { format: undefined, candidates: false, results: false };
   const formatListeners = [];
 
   const loadSummary = async () => {
@@ -61,13 +64,17 @@
       $("[data-details-status]").textContent = statusLabels[summary.status] ?? summary.status;
       const statusSelect = $("[data-status-select]");
       if (statusSelect instanceof HTMLSelectElement) statusSelect.value = summary.status;
-      const changed = state.format !== summary.dataFormat || state.candidates !== summary.supportsCandidates;
+      const supportsResults = summary.counts.some((count) => count.kind === "Results");
+      const changed = state.format !== summary.dataFormat || state.candidates !== summary.supportsCandidates || state.results !== supportsResults;
       state.format = summary.dataFormat;
       state.candidates = summary.supportsCandidates;
+      state.results = supportsResults;
       const info = formatInfo[state.format];
       formatName.textContent = info ? info.label : "Chưa gán định dạng";
       formatHint.textContent = info ? info.note : noFormatMessage;
       if (candidatesCard instanceof HTMLElement) candidatesCard.classList.toggle("hidden", !state.candidates);
+      if (resultsCard instanceof HTMLElement) resultsCard.classList.toggle("hidden", !state.results);
+      if (candidatesTitle instanceof HTMLElement) candidatesTitle.textContent = state.format === "ItMockOnline" ? "Lịch thi thử" : "Danh sách thi";
       if (changed) for (const listener of formatListeners) listener();
       return summary;
     } catch (error) {
@@ -118,7 +125,7 @@
     };
 
     const load = async () => {
-      if (!state.format || (kind === "Candidates" && !state.candidates)) {
+      if (!state.format || (kind === "Candidates" && !state.candidates) || (kind === "Results" && !state.results)) {
         rows.replaceChildren();
         head.replaceChildren();
         total.textContent = "";
@@ -187,20 +194,30 @@
     let isImporting = false;
 
     const updateHint = () => {
+      const candidateOption = kind.querySelector('option[value="Candidates"]');
+      const resultOption = kind.querySelector('option[value="Results"]');
+      if (candidateOption instanceof HTMLOptionElement) {
+        candidateOption.disabled = !state.candidates;
+        candidateOption.textContent = state.format === "ItMockOnline" ? "Lịch thi thử" : "Danh sách thi";
+      }
+      if (resultOption instanceof HTMLOptionElement) resultOption.disabled = !state.results;
+      if (kind.value === "Candidates" && !state.candidates && state.results) kind.value = "Results";
+      if (kind.value === "Results" && !state.results && state.candidates) kind.value = "Candidates";
       const needsValidUntil = kind.value === "Results" && ["ItStandard", "LanguageStandard"].includes(state.format);
       if (validUntilField instanceof HTMLElement) validUntilField.classList.toggle("hidden", !needsValidUntil);
       hint.textContent = kind.value === "Candidates"
-        ? "Danh sách thi nhập được khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
+        ? state.format === "ItMockOnline"
+          ? "Lịch thi thử được nhập khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
+          : "Danh sách thi nhập được khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
         : "Kết quả thi nhập được khi kỳ thi ở trạng thái từ “Chưa bắt đầu” đến “Đã thi (Chờ kết quả)”; sau khi nhập kỳ thi chuyển sang “Đã nhập kết quả”.";
       template.href = `${config.templateUrl}?kind=${encodeURIComponent(kind.value)}`;
       template.classList.toggle("hidden", !state.format);
-      submit.disabled = isImporting || !state.format;
+      submit.disabled = isImporting || !state.format || (kind.value === "Candidates" ? !state.candidates : !state.results);
     };
     kind.addEventListener("change", updateHint);
     formatListeners.push(() => {
-      const option = kind.querySelector('option[value="Candidates"]');
-      if (option instanceof HTMLOptionElement) option.disabled = !state.candidates;
-      if (!state.candidates) kind.value = "Results";
+      if (!state.candidates && state.results) kind.value = "Results";
+      else if (state.candidates) kind.value = "Candidates";
       updateHint();
     });
     updateHint();
@@ -241,7 +258,7 @@
         showError(importError, error.message || "Không thể import file.");
       } finally {
         isImporting = false;
-        submit.disabled = !state.format;
+        submit.disabled = !state.format || (kind.value === "Candidates" ? !state.candidates : !state.results);
       }
     });
   }

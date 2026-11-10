@@ -23,6 +23,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ItExamResult> ItExamResults => Set<ItExamResult>();
 
+    public DbSet<OnlineExamSchedule> OnlineExamSchedules => Set<OnlineExamSchedule>();
+
     public DbSet<LanguageStandardCandidate> LanguageStandardCandidates => Set<LanguageStandardCandidate>();
 
     public DbSet<LanguageStandardResult> LanguageStandardResults => Set<LanguageStandardResult>();
@@ -137,6 +139,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         ConfigureStudentRecord<LanguagePlacementCandidate>(builder);
         ConfigureStudentRecord<LanguagePlacementResult>(builder);
         ConfigureStudentRecord<EnglishIntensiveResult>(builder);
+        builder.Entity<OnlineExamSchedule>(entity =>
+        {
+            entity.Property(schedule => schedule.MicrosoftTeamsRoomName).HasMaxLength(OnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.TeamsDeviceLoginStartTime).HasMaxLength(OnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.EExamsDeviceLoginStartTime).HasMaxLength(OnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.Note).HasMaxLength(OnlineExamSchedule.NoteMaxLength);
+            entity.Property(schedule => schedule.RetainedSection).HasMaxLength(OnlineExamSchedule.NoteMaxLength);
+        });
+        ConfigureStudentRecord<OnlineExamSchedule>(builder);
         ConfigureIndependentRecord<ItBasicCertificateCandidate>(builder);
         ConfigureIndependentRecord<ItBasicCertificateResult>(builder);
         ApplyExamDataLimits(builder);
