@@ -76,6 +76,7 @@
     EnglishIntensive: "Tiếng Anh tăng cường",
     ItBasicCertificate: "Chứng chỉ ứng dụng CNTT cơ bản",
     ItMockOnline: "Thi thử chuẩn đầu ra Công nghệ thông tin (Online)",
+    LanguageMockOnline: "Thi thử Chuẩn đầu ra Ngoại ngữ (Online)",
   };
   const dataFormatSelect = manager.querySelector("#exam-type-data-format");
   const request = (url, options = {}) => adminApi.request(url, options, "#exam-type-antiforgery");

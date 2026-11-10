@@ -25,6 +25,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<OnlineExamSchedule> OnlineExamSchedules => Set<OnlineExamSchedule>();
 
+    public DbSet<LanguageOnlineExamSchedule> LanguageOnlineExamSchedules => Set<LanguageOnlineExamSchedule>();
+
     public DbSet<LanguageStandardCandidate> LanguageStandardCandidates => Set<LanguageStandardCandidate>();
 
     public DbSet<LanguageStandardResult> LanguageStandardResults => Set<LanguageStandardResult>();
@@ -148,6 +150,15 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(schedule => schedule.RetainedSection).HasMaxLength(OnlineExamSchedule.NoteMaxLength);
         });
         ConfigureStudentRecord<OnlineExamSchedule>(builder);
+        builder.Entity<LanguageOnlineExamSchedule>(entity =>
+        {
+            entity.Property(schedule => schedule.MockExamRoom).HasMaxLength(LanguageOnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.TeamsLoginStartTime).HasMaxLength(LanguageOnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.SebLoginStartTime).HasMaxLength(LanguageOnlineExamSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.RetainedSection).HasMaxLength(LanguageOnlineExamSchedule.NoteMaxLength);
+            entity.Property(schedule => schedule.RetentionBatch).HasMaxLength(LanguageOnlineExamSchedule.NoteMaxLength);
+        });
+        ConfigureStudentRecord<LanguageOnlineExamSchedule>(builder);
         ConfigureIndependentRecord<ItBasicCertificateCandidate>(builder);
         ConfigureIndependentRecord<ItBasicCertificateResult>(builder);
         ApplyExamDataLimits(builder);

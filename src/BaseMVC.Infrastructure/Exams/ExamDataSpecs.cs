@@ -436,6 +436,16 @@ internal static class ExamDataSpecs
             new("Ghi chú/Đợt BL", "Note", "Ghi chú/Đợt BL", "Đợt 1"),
             new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Thực hành")
         ]),
+        new ExamDataSpec<LanguageOnlineExamSchedule>(ExamDataFormat.LanguageMockOnline, ExamImportKind.Candidates,
+        [
+            .. OnlineSchedulePrefix,
+            new("Ngày thi thử", "MockExamDate", "Ngày thi thử", "20/11/2026", ColType.Date),
+            new("Phòng thi thử", "MockExamRoom", "Phòng thi thử", "P.101"),
+            new("Thời gian đăng nhập Ms TEAMS", "TeamsLoginStartTime", "Thời gian đăng nhập Ms TEAMS", "08:00"),
+            new("Thời gian đăng nhập SEB", "SebLoginStartTime", "Thời gian đăng nhập SEB", "08:15"),
+            new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Kỹ năng nghe"),
+            new("Đợt bảo lưu", "RetentionBatch", "Đợt bảo lưu", "Đợt 1")
+        ]),
         new ExamDataSpec<ItExamCandidate>(ExamDataFormat.ItStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,

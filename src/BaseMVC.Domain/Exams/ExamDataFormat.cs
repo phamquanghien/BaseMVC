@@ -8,5 +8,6 @@ public enum ExamDataFormat
     LanguagePlacement,
     EnglishIntensive,
     ItBasicCertificate,
-    ItMockOnline
+    ItMockOnline,
+    LanguageMockOnline
 }

@@ -50,6 +50,7 @@
     EnglishIntensive: { label: "Tiếng Anh tăng cường", note: `Chỉ hỗ trợ nhập kết quả thi (chưa có danh sách thi). ${studentNote}` },
     ItBasicCertificate: { label: "Chứng chỉ ứng dụng CNTT cơ bản", note: "Thí sinh thi độc lập, không liên kết danh sách sinh viên. Số CCCD và Số báo danh không được trùng nhau trong một kỳ thi." },
     ItMockOnline: { label: "Thi thử chuẩn đầu ra Công nghệ thông tin (Online)", note: "Nhập lịch thi thử từ Excel; mã sinh viên liên kết với danh sách sinh viên. Định dạng ngày: dd/mm/yyyy; thời gian đăng nhập được lưu nguyên văn." },
+    LanguageMockOnline: { label: "Thi thử Chuẩn đầu ra Ngoại ngữ (Online)", note: "Nhập lịch thi thử từ Excel; mã sinh viên liên kết với danh sách sinh viên. Định dạng ngày: dd/mm/yyyy; thời gian đăng nhập được lưu nguyên văn." },
   };
   const noFormatMessage = "Loại kỳ thi này chưa được gán định dạng dữ liệu. Vui lòng gán ở mục Loại kỳ thi để nhập và xem danh sách thi/kết quả thi.";
   // Định dạng được suy ra từ loại kỳ thi của kỳ thi; cập nhật mỗi lần tải summary.
@@ -74,7 +75,7 @@
       formatHint.textContent = info ? info.note : noFormatMessage;
       if (candidatesCard instanceof HTMLElement) candidatesCard.classList.toggle("hidden", !state.candidates);
       if (resultsCard instanceof HTMLElement) resultsCard.classList.toggle("hidden", !state.results);
-      if (candidatesTitle instanceof HTMLElement) candidatesTitle.textContent = state.format === "ItMockOnline" ? "Lịch thi thử" : "Danh sách thi";
+      if (candidatesTitle instanceof HTMLElement) candidatesTitle.textContent = ["ItMockOnline", "LanguageMockOnline"].includes(state.format) ? "Lịch thi thử" : "Danh sách thi";
       if (changed) for (const listener of formatListeners) listener();
       return summary;
     } catch (error) {
@@ -198,7 +199,7 @@
       const resultOption = kind.querySelector('option[value="Results"]');
       if (candidateOption instanceof HTMLOptionElement) {
         candidateOption.disabled = !state.candidates;
-        candidateOption.textContent = state.format === "ItMockOnline" ? "Lịch thi thử" : "Danh sách thi";
+        candidateOption.textContent = ["ItMockOnline", "LanguageMockOnline"].includes(state.format) ? "Lịch thi thử" : "Danh sách thi";
       }
       if (resultOption instanceof HTMLOptionElement) resultOption.disabled = !state.results;
       if (kind.value === "Candidates" && !state.candidates && state.results) kind.value = "Results";
@@ -206,7 +207,7 @@
       const needsValidUntil = kind.value === "Results" && ["ItStandard", "LanguageStandard"].includes(state.format);
       if (validUntilField instanceof HTMLElement) validUntilField.classList.toggle("hidden", !needsValidUntil);
       hint.textContent = kind.value === "Candidates"
-        ? state.format === "ItMockOnline"
+        ? ["ItMockOnline", "LanguageMockOnline"].includes(state.format)
           ? "Lịch thi thử được nhập khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
           : "Danh sách thi nhập được khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
         : "Kết quả thi nhập được khi kỳ thi ở trạng thái từ “Chưa bắt đầu” đến “Đã thi (Chờ kết quả)”; sau khi nhập kỳ thi chuyển sang “Đã nhập kết quả”.";
