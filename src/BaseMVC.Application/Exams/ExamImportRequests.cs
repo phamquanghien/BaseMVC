@@ -6,7 +6,7 @@ public sealed record GetExamImportTemplateQuery(int ExamId, ExamImportKind Kind)
 
 public sealed record ImportExamDataCommand(
     int ExamId, ExamImportKind Kind, ExamImportMode Mode,
-    Stream Content, string? ActorUserId) : IRequest<ExamImportOutcome>;
+    Stream Content, DateOnly? ValidUntil, string? ActorUserId) : IRequest<ExamImportOutcome>;
 
 public sealed record GetExamSummaryQuery(int ExamId) : IRequest<ExamSummaryDto?>;
 
@@ -26,7 +26,7 @@ public sealed class ImportExamDataHandler(IExamImportService service)
 {
     public Task<ExamImportOutcome> Handle(ImportExamDataCommand request, CancellationToken cancellationToken) =>
         service.ImportAsync(
-            request.ExamId, request.Kind, request.Mode, request.Content, request.ActorUserId, cancellationToken);
+            request.ExamId, request.Kind, request.Mode, request.Content, request.ValidUntil, request.ActorUserId, cancellationToken);
 }
 
 public sealed class GetExamSummaryHandler(IExamImportService service)

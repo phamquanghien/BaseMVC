@@ -179,12 +179,16 @@
     const submit = $("[data-import-submit]");
     const template = $("[data-import-template]");
     const hint = $("[data-import-hint]");
+    const validUntilField = $("[data-valid-until-field]");
+    const validUntil = $("[data-valid-until]");
     const importError = $("[data-import-error]");
     const summary = $("[data-import-summary]");
     const errorList = $("[data-import-errors]");
     let isImporting = false;
 
     const updateHint = () => {
+      const needsValidUntil = kind.value === "Results" && ["ItStandard", "LanguageStandard"].includes(state.format);
+      if (validUntilField instanceof HTMLElement) validUntilField.classList.toggle("hidden", !needsValidUntil);
       hint.textContent = kind.value === "Candidates"
         ? "Danh sách thi nhập được khi kỳ thi ở trạng thái “Chưa bắt đầu”, “Mở đăng ký”, “Đã hoàn thành đăng ký” hoặc “Chờ xếp lịch thi”; sau khi nhập kỳ thi chuyển sang “Đã xếp lịch thi”."
         : "Kết quả thi nhập được khi kỳ thi ở trạng thái từ “Chưa bắt đầu” đến “Đã thi (Chờ kết quả)”; sau khi nhập kỳ thi chuyển sang “Đã nhập kết quả”.";
@@ -220,6 +224,7 @@
         body.append("file", selected);
         body.append("kind", kind.value);
         body.append("mode", mode.value);
+        if (validUntil instanceof HTMLInputElement && validUntil.value) body.append("validUntil", validUntil.value);
         const result = await request(config.importUrl, { method: "POST", body });
         summary.textContent = `Đã import ${result.importedCount}/${result.totalRows} dòng; ${result.errors.length} dòng lỗi.`;
         summary.classList.remove("hidden");

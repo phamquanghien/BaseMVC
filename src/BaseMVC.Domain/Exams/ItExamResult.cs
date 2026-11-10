@@ -12,5 +12,7 @@ public sealed class ItExamResult : StudentExamRecord
 
     public string? FinalScore { get; set; }
 
+    public DateOnly? ValidUntil { get; set; }
+
     public string? Note { get; set; }
 }

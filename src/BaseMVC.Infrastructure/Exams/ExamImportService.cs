@@ -38,7 +38,7 @@ public sealed class ExamImportService(ApplicationDbContext dbContext, IAuditLogW
 
     public async Task<ExamImportOutcome> ImportAsync(
         int examId, ExamImportKind kind, ExamImportMode mode,
-        Stream content, string? actorUserId, CancellationToken cancellationToken)
+        Stream content, DateOnly? validUntil, string? actorUserId, CancellationToken cancellationToken)
     {
         var resolved = await ResolveSpecAsync(examId, kind, cancellationToken);
         if (resolved.Spec is null) return new ExamImportOutcome(resolved.StatusCode, Error: resolved.Error);
@@ -70,7 +70,10 @@ public sealed class ExamImportService(ApplicationDbContext dbContext, IAuditLogW
             if (lastRow - 1 > MaxDataRows)
                 return ExamImportOutcome.BadRequest($"File chỉ được chứa tối đa {MaxDataRows} dòng dữ liệu.");
 
-            var outcome = await spec.ImportAsync(dbContext, exam, mode, worksheet, lastRow, actorUserId, cancellationToken);
+            var isStandardResult = kind == ExamImportKind.Results &&
+                (spec.Format == ExamDataFormat.ItStandard || spec.Format == ExamDataFormat.LanguageStandard);
+            DateOnly? effectiveDate = isStandardResult ? validUntil ?? DateOnly.FromDateTime(DateTime.Today).AddYears(5) : null;
+            var outcome = await spec.ImportAsync(dbContext, exam, mode, worksheet, lastRow, effectiveDate, actorUserId, cancellationToken);
             if (outcome.StatusCode == 200 && outcome.Result!.ImportedCount > 0)
             {
                 await auditLogWriter.WriteAsync(

@@ -7,7 +7,7 @@ public interface IExamImportService
 
     Task<ExamImportOutcome> ImportAsync(
         int examId, ExamImportKind kind, ExamImportMode mode,
-        Stream content, string? actorUserId, CancellationToken cancellationToken);
+        Stream content, DateOnly? validUntil, string? actorUserId, CancellationToken cancellationToken);
 
     Task<ExamSummaryDto?> GetSummaryAsync(int examId, CancellationToken cancellationToken);
 

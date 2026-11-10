@@ -32,7 +32,7 @@ internal interface IExamDataSpec
 
     Task<ExamImportOutcome> ImportAsync(
         ApplicationDbContext db, Exam exam, ExamImportMode mode, IXLWorksheet worksheet, int lastRow,
-        string? actorUserId, CancellationToken cancellationToken);
+        DateOnly? validUntil, string? actorUserId, CancellationToken cancellationToken);
 
     Task<ExamDataPage> SearchAsync(
         ApplicationDbContext db, int examId, string? search, int page, int pageSize, CancellationToken cancellationToken);
@@ -132,7 +132,7 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
 
     public async Task<ExamImportOutcome> ImportAsync(
         ApplicationDbContext db, Exam exam, ExamImportMode mode, IXLWorksheet worksheet, int lastRow,
-        string? actorUserId, CancellationToken cancellationToken)
+        DateOnly? validUntil, string? actorUserId, CancellationToken cancellationToken)
     {
         var set = db.Set<T>();
         var studentIds = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -203,6 +203,12 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
                         Set(entity, col.Property!, col.Required ? text ?? string.Empty : text);
                         break;
                 }
+            }
+
+            if (kind == ExamImportKind.Results &&
+                (format == ExamDataFormat.ItStandard || format == ExamDataFormat.LanguageStandard))
+            {
+                Prop("ValidUntil").SetValue(entity, validUntil);
             }
 
             if (rowErrors.Count == 0)
@@ -295,8 +301,15 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
         }
     }
 
-    private IEnumerable<Col> DisplayCols() =>
-        cols.Where(col => col.Property is not null && col.Type != ColType.StudentCode && col.Type != ColType.Ignored);
+    private IEnumerable<Col> DisplayCols()
+    {
+        foreach (var col in cols.Where(col => col.Property is not null && col.Type != ColType.StudentCode && col.Type != ColType.Ignored))
+            yield return col;
+
+        if (kind == ExamImportKind.Results &&
+            (format == ExamDataFormat.ItStandard || format == ExamDataFormat.LanguageStandard))
+            yield return new Col("ValidUntil", "ValidUntil", "Có hiệu lực đến ngày", "", ColType.Date);
+    }
 
     private static string Key(string property) => char.ToLowerInvariant(property[0]) + property[1..];
 

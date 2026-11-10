@@ -67,7 +67,7 @@ public sealed class ExamsController(ISender sender) : Controller
     [RequestSizeLimit(MaxImportFileBytes)]
     public async Task<IActionResult> Import(
         int id, IFormFile? file, [FromForm] ExamImportKind kind,
-        [FromForm] ExamImportMode mode, CancellationToken cancellationToken)
+        [FromForm] ExamImportMode mode, [FromForm] DateOnly? validUntil, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(mode))
             return BadRequest(new { errors = new[] { "Chế độ nhập không hợp lệ." } });
@@ -82,7 +82,7 @@ public sealed class ExamsController(ISender sender) : Controller
 
         await using var stream = file.OpenReadStream();
         var outcome = await sender.Send(
-            new ImportExamDataCommand(id, kind, mode, stream, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            new ImportExamDataCommand(id, kind, mode, stream, validUntil, User.FindFirstValue(ClaimTypes.NameIdentifier)),
             cancellationToken);
         return outcome.StatusCode == 200 ? Ok(outcome.Result) : ToErrorResult(outcome.StatusCode, outcome.Error);
     }

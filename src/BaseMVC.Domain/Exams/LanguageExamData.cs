@@ -25,6 +25,8 @@ public sealed class LanguageStandardCandidate : StudentExamRecord
 /// <summary>Kết quả thi Chuẩn đầu ra Ngoại ngữ. Điểm lưu dạng chuỗi theo file Excel.</summary>
 public sealed class LanguageStandardResult : StudentExamRecord
 {
+    public DateOnly? ValidUntil { get; set; }
+
     public string? Listening { get; set; }
 
     public string? Reading { get; set; }

@@ -399,6 +399,9 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                     b.Property<int>("ExamId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<DateOnly?>("ValidUntil")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("FinalScore")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
@@ -646,6 +649,9 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("ExamId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateOnly?>("ValidUntil")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("FinalScore")
                         .HasMaxLength(50)

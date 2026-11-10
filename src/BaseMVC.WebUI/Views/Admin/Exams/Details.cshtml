@@ -77,6 +77,10 @@
                         </select>
                     </label>
                 </div>
+                <label class="form-control hidden" data-valid-until-field>
+                    <span class="label-text mb-1 font-medium">Có hiệu lực đến ngày</span>
+                    <input type="date" class="input input-bordered w-full sm:max-w-xs" data-valid-until value="@DateTime.Today.AddYears(5).ToString("yyyy-MM-dd")" />
+                </label>
                 <p class="text-xs text-base-content/60" data-import-hint></p>
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <input type="file" accept=".xlsx" class="file-input file-input-bordered w-full sm:max-w-md" aria-label="Chọn file Excel" data-import-file />
