@@ -667,7 +667,7 @@ internal static class ExamDataSpecs
             new("Ngày thi Nói", "ExamDateSpeaking", "Ngày thi Nói", "Ca 1, ngày 09/06/2026"),
             new("Phòng thi Nói Microsoft TEAMS", "ExamRoomSpeaking", "Phòng thi Nói Microsoft TEAMS", "HUMG-NN-SPEAK"),
             new("Thời gian đăng nhập Microsoft TEAMS", "TeamsLoginStartTimeSpeaking", "Thời gian đăng nhập Microsoft TEAMS (Nói)", "09:00")
-        ]),
+        ], enableScheduleEditing: true),
         new ExamDataSpec<LanguageStandardCandidate>(ExamDataFormat.LanguageStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,
