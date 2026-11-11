@@ -627,7 +627,7 @@ internal static class ExamDataSpecs
             new("Tên phòng thi trên Microsoft Teams", "MicrosoftTeamsRoomName", "Tên phòng thi trên Microsoft Teams", "HUMG-IT-01"),
             new("Ghi chú/Đợt BL", "Note", "Ghi chú/Đợt BL", "Đợt 1"),
             new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Thực hành")
-        ]),
+        ], enableScheduleEditing: true),
         new ExamDataSpec<ItExamCandidate>(ExamDataFormat.ItStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,
