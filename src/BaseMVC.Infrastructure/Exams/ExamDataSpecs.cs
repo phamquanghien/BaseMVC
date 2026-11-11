@@ -617,7 +617,7 @@ internal static class ExamDataSpecs
             new("Thời gian đăng nhập SEB", "SebLoginStartTime", "Thời gian đăng nhập SEB", "08:15"),
             new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Kỹ năng nghe"),
             new("Đợt bảo lưu", "RetentionBatch", "Đợt bảo lưu", "Đợt 1")
-        ]),
+        ], enableScheduleEditing: true),
         new ExamDataSpec<ItStandardOnlineSchedule>(ExamDataFormat.ItStandardOnline, ExamImportKind.Candidates,
         [
             .. ItStandardOnlineSchedulePrefix,
