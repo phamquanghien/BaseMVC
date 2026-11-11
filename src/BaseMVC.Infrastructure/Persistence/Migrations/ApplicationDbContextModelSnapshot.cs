@@ -498,6 +498,80 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                     b.ToTable("ItStandardOnlineSchedules");
                 });
 
+            modelBuilder.Entity("BaseMVC.Domain.Exams.LanguageStandardOnlineSchedule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ExamDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExamRoom")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateOnly?>("ExamDateSpeaking")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExamRoomSpeaking")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EExamsStartTime")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ExamId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastModifiedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RetentionBatch")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RetainedSection")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TeamsLoginStartTime")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TeamsLoginStartTimeSpeaking")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId");
+
+                    b.HasIndex("ExamId", "StudentId")
+                        .IsUnique();
+
+                    b.ToTable("LanguageStandardOnlineSchedules");
+                });
+
             modelBuilder.Entity("BaseMVC.Domain.Exams.OnlineExamSchedule", b =>
                 {
                     b.Property<int>("Id")
@@ -832,6 +906,25 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("BaseMVC.Domain.Exams.ItStandardOnlineSchedule", b =>
+                {
+                    b.HasOne("BaseMVC.Domain.Exams.Exam", "Exam")
+                        .WithMany()
+                        .HasForeignKey("ExamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BaseMVC.Domain.Students.Student", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Exam");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("BaseMVC.Domain.Exams.LanguageStandardOnlineSchedule", b =>
                 {
                     b.HasOne("BaseMVC.Domain.Exams.Exam", "Exam")
                         .WithMany()

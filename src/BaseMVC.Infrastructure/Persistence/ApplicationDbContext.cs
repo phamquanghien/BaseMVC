@@ -27,6 +27,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<ItStandardOnlineSchedule> ItStandardOnlineSchedules => Set<ItStandardOnlineSchedule>();
 
+    public DbSet<LanguageStandardOnlineSchedule> LanguageStandardOnlineSchedules => Set<LanguageStandardOnlineSchedule>();
+
     public DbSet<LanguageOnlineExamSchedule> LanguageOnlineExamSchedules => Set<LanguageOnlineExamSchedule>();
 
     public DbSet<LanguageStandardCandidate> LanguageStandardCandidates => Set<LanguageStandardCandidate>();
@@ -162,6 +164,18 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(schedule => schedule.RetainedSection).HasMaxLength(ItStandardOnlineSchedule.NoteMaxLength);
         });
         ConfigureStudentRecord<ItStandardOnlineSchedule>(builder);
+        builder.Entity<LanguageStandardOnlineSchedule>(entity =>
+        {
+            entity.Property(schedule => schedule.RetentionBatch).HasMaxLength(LanguageStandardOnlineSchedule.NoteMaxLength);
+            entity.Property(schedule => schedule.Note).HasMaxLength(LanguageStandardOnlineSchedule.NoteMaxLength);
+            entity.Property(schedule => schedule.ExamRoom).HasMaxLength(LanguageStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.TeamsLoginStartTime).HasMaxLength(LanguageStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.EExamsStartTime).HasMaxLength(LanguageStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.ExamRoomSpeaking).HasMaxLength(LanguageStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.TeamsLoginStartTimeSpeaking).HasMaxLength(LanguageStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.RetainedSection).HasMaxLength(LanguageStandardOnlineSchedule.NoteMaxLength);
+        });
+        ConfigureStudentRecord<LanguageStandardOnlineSchedule>(builder);
         builder.Entity<LanguageOnlineExamSchedule>(entity =>
         {
             entity.Property(schedule => schedule.MockExamRoom).HasMaxLength(LanguageOnlineExamSchedule.ShortTextMaxLength);

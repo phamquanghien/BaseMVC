@@ -72,7 +72,7 @@ public sealed class ExamImportService(ApplicationDbContext dbContext, IAuditLogW
 
             var isStandardResult = kind == ExamImportKind.Results &&
                 (spec.Format == ExamDataFormat.ItStandard || spec.Format == ExamDataFormat.ItStandardOnline ||
-                    spec.Format == ExamDataFormat.LanguageStandard);
+                    spec.Format == ExamDataFormat.LanguageStandard || spec.Format == ExamDataFormat.LanguageStandardOnline);
             DateOnly? effectiveDate = isStandardResult ? validUntil ?? DateOnly.FromDateTime(DateTime.Today).AddYears(5) : null;
             var outcome = await spec.ImportAsync(dbContext, exam, mode, worksheet, lastRow, effectiveDate, actorUserId, cancellationToken);
             if (outcome.StatusCode == 200 && outcome.Result!.ImportedCount > 0)

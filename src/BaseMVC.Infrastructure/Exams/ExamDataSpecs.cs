@@ -132,7 +132,7 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
 
         var columns = new List<ExamDataColumn>();
         if (IsStudentBased)
-            columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", format == ExamDataFormat.ItStandardOnline ? "Họ đệm" : "Họ lót"), new("firstName", "Tên")]);
+            columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", format is ExamDataFormat.ItStandardOnline or ExamDataFormat.LanguageStandardOnline ? "Họ đệm" : "Họ lót"), new("firstName", "Tên")]);
         columns.AddRange(displayCols.Select(col => new ExamDataColumn(Key(col.Property!), col.Label)));
         return new ExamDataPage(columns, items, page, pageSize, totalCount, totalPages);
     }
@@ -254,7 +254,7 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
             }
 
             if (kind == ExamImportKind.Results &&
-                (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline ||
+                (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline || format == ExamDataFormat.LanguageStandardOnline ||
                     format == ExamDataFormat.LanguageStandard))
             {
                 Prop("ValidUntil").SetValue(entity, validUntil);
@@ -356,7 +356,7 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
             yield return col;
 
         if (kind == ExamImportKind.Results &&
-            (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline ||
+            (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline || format == ExamDataFormat.LanguageStandardOnline ||
                 format == ExamDataFormat.LanguageStandard))
             yield return new Col("ValidUntil", "ValidUntil", "Có hiệu lực đến ngày", "", ColType.Date);
     }
@@ -454,6 +454,14 @@ internal static class ExamDataSpecs
         new("Tên", null, "Tên", "An", ColType.Ignored)
     ];
 
+    private static readonly Col[] LanguageStandardOnlineSchedulePrefix =
+    [
+        new("Số thứ tự", null, "Số thứ tự", "1", ColType.Ignored),
+        new("Mã sinh viên", null, "Mã sinh viên", "CTTT-10210104", ColType.StudentCode),
+        new("Họ đệm", null, "Họ đệm", "Nguyễn Văn", ColType.Ignored),
+        new("Tên", null, "Tên", "An", ColType.Ignored)
+    ];
+
     private static readonly Col[] IdentityPerson =
     [
         new("LastName", "LastName", "Họ lót", "Nguyễn Văn", Required: true),
@@ -540,6 +548,20 @@ internal static class ExamDataSpecs
             new("FinalScore", "FinalScore", "Điểm tổng", "75", ColType.Score100),
             new("Note", "Note", "Ghi chú", "")
         ]),
+        new ExamDataSpec<LanguageStandardOnlineSchedule>(ExamDataFormat.LanguageStandardOnline, ExamImportKind.Candidates,
+        [
+            .. LanguageStandardOnlineSchedulePrefix,
+            new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Nghe"),
+            new("Đợt bảo lưu", "RetentionBatch", "Đợt bảo lưu", "Đợt 1"),
+            new("Ghi chú", "Note", "Ghi chú", ""),
+            new("Ngày thi Nghe Đọc Viết", "ExamDate", "Ngày thi Nghe Đọc Viết", "20/11/2026", ColType.Date),
+            new("Phòng thi Nghe Đọc Viết trên Microsoft TEAMS", "ExamRoom", "Phòng thi Nghe Đọc Viết trên Microsoft TEAMS", "HUMG-NN-LRW"),
+            new("Thời gian đăng nhập Microsoft TEAMS", "TeamsLoginStartTime", "Thời gian đăng nhập Microsoft TEAMS (Nghe Đọc Viết)", "08:00"),
+            new("Thời gian bắt đầu làm bài trên HUMG e-Exams", "EExamsStartTime", "Thời gian bắt đầu làm bài trên HUMG e-Exams", "08:15"),
+            new("Ngày thi Nói", "ExamDateSpeaking", "Ngày thi Nói", "21/11/2026", ColType.Date),
+            new("Phòng thi Nói Microsoft TEAMS", "ExamRoomSpeaking", "Phòng thi Nói Microsoft TEAMS", "HUMG-NN-SPEAK"),
+            new("Thời gian đăng nhập Microsoft TEAMS", "TeamsLoginStartTimeSpeaking", "Thời gian đăng nhập Microsoft TEAMS (Nói)", "09:00")
+        ]),
         new ExamDataSpec<LanguageStandardCandidate>(ExamDataFormat.LanguageStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,
@@ -552,6 +574,8 @@ internal static class ExamDataSpecs
             .. SpeakingSchedule
         ]),
         new ExamDataSpec<LanguageStandardResult>(ExamDataFormat.LanguageStandard, ExamImportKind.Results,
+            [.. StudentPrefix, .. LanguageScores]),
+        new ExamDataSpec<LanguageStandardResult>(ExamDataFormat.LanguageStandardOnline, ExamImportKind.Results,
             [.. StudentPrefix, .. LanguageScores]),
         new ExamDataSpec<LanguagePlacementCandidate>(ExamDataFormat.LanguagePlacement, ExamImportKind.Candidates,
         [
