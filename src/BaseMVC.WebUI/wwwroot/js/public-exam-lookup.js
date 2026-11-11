@@ -34,6 +34,9 @@
     error.textContent = text;
     error.classList.remove("hidden");
   };
+  const scrollToOutput = (element) => {
+    window.requestAnimationFrame(() => element.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const clearOutput = () => {
     error.classList.add("hidden");
     message.classList.add("hidden");
@@ -127,6 +130,7 @@
       if (data.message) {
         message.textContent = data.message;
         message.classList.remove("hidden");
+        scrollToOutput(message);
         return;
       }
 
@@ -145,6 +149,7 @@
         rows.append(row);
       }
       results.classList.remove("hidden");
+      scrollToOutput(results);
     } catch (requestError) {
       showError(requestError.message || "Không thể thực hiện tra cứu.");
     } finally {
