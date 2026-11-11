@@ -28,6 +28,8 @@ internal interface IExamDataSpec
 
     ExamImportKind Kind { get; }
 
+    bool SupportsStudentLookup { get; }
+
     IReadOnlyList<Col> Cols { get; }
 
     Task<ExamImportOutcome> ImportAsync(
@@ -36,6 +38,9 @@ internal interface IExamDataSpec
 
     Task<ExamDataPage> SearchAsync(
         ApplicationDbContext db, int examId, string? search, int page, int pageSize, CancellationToken cancellationToken);
+
+    Task<PublicExamLookupData> LookupStudentAsync(
+        ApplicationDbContext db, int examTypeId, int studentId, CancellationToken cancellationToken);
 
     Task<int> CountAsync(ApplicationDbContext db, int examId, CancellationToken cancellationToken);
 
@@ -55,6 +60,8 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
     public ExamDataFormat Format => format;
 
     public ExamImportKind Kind => kind;
+
+    public bool SupportsStudentLookup => IsStudentBased;
 
     public IReadOnlyList<Col> Cols => cols;
 
@@ -128,6 +135,47 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
             columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", "Họ lót"), new("firstName", "Tên")]);
         columns.AddRange(displayCols.Select(col => new ExamDataColumn(Key(col.Property!), col.Label)));
         return new ExamDataPage(columns, items, page, pageSize, totalCount, totalPages);
+    }
+
+    public async Task<PublicExamLookupData> LookupStudentAsync(
+        ApplicationDbContext db, int examTypeId, int studentId, CancellationToken cancellationToken)
+    {
+        if (!IsStudentBased)
+            return new PublicExamLookupData([], []);
+
+        var rows = await db.Set<T>().AsNoTracking()
+            .Where(item => item.Exam!.ExamTypeId == examTypeId &&
+                EF.Property<int>(item, nameof(StudentExamRecord.StudentId)) == studentId)
+            .OrderByDescending(item => item.ExamId)
+            .ToListAsync(cancellationToken);
+
+        var examIds = rows.Select(row => row.ExamId).Distinct().ToArray();
+        var examNames = await db.Exams.AsNoTracking().Where(exam => examIds.Contains(exam.Id))
+            .ToDictionaryAsync(exam => exam.Id, exam => exam.Name, cancellationToken);
+        var student = await db.Students.AsNoTracking().SingleAsync(item => item.Id == studentId, cancellationToken);
+        var displayCols = DisplayCols().ToArray();
+        var items = rows.Select(row =>
+        {
+            var values = new Dictionary<string, string?>
+            {
+                ["studentCode"] = student.StudentCode,
+                ["lastName"] = student.LastName,
+                ["firstName"] = student.FirstName
+            };
+            foreach (var col in displayCols)
+                values[Key(col.Property!)] = Display(Prop(col.Property!).GetValue(row));
+            return new PublicExamLookupItem(examNames.GetValueOrDefault(row.ExamId, string.Empty), values);
+        }).ToArray();
+
+        var columns = new List<ExamDataColumn>
+        {
+            new("examName", "Kỳ thi"),
+            new("studentCode", "Mã sinh viên"),
+            new("lastName", "Họ đệm"),
+            new("firstName", "Tên")
+        };
+        columns.AddRange(displayCols.Select(col => new ExamDataColumn(Key(col.Property!), col.Label)));
+        return new PublicExamLookupData(columns, items);
     }
 
     public async Task<ExamImportOutcome> ImportAsync(

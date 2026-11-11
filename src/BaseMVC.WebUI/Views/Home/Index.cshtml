@@ -1,69 +1,109 @@
-﻿@{
-    ViewData["Title"] = "Nền tảng khởi đầu";
+﻿@model BaseMVC.WebUI.Models.Home.HomeIndexViewModel
+@{
+    ViewData["Title"] = "HỆ THỐNG TRA CỨU KẾT QUẢ THI CFI - HUMG";
 }
 
-<section class="hero overflow-hidden rounded-3xl bg-base-100 shadow-sm">
-    <div class="hero-content w-full flex-col items-start gap-10 px-6 py-12 sm:px-10 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-16">
-        <div class="max-w-2xl">
-            <div class="badge badge-primary badge-outline mb-5 gap-2 px-3 py-3">ASP.NET Core MVC · .NET 10</div>
-            <h1 class="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
-                Nền móng vững chắc cho <span class="text-primary">ứng dụng tiếp theo</span>
-            </h1>
-            <p class="mt-6 max-w-xl text-lg leading-8 text-base-content/70">
-                BaseMVC cung cấp cấu trúc rõ ràng để đội ngũ tập trung xây dựng sản phẩm, với giao diện responsive và các lớp ứng dụng được tách biệt.
-            </p>
-            <div class="mt-8 flex flex-wrap gap-3">
-                <a class="btn btn-primary" asp-controller="Home" asp-action="Privacy">Khám phá nền tảng</a>
-                <a class="btn btn-outline" href="https://learn.microsoft.com/aspnet/core" target="_blank" rel="noopener noreferrer">Tài liệu ASP.NET Core</a>
-            </div>
+<section class="lookup-page relative isolate -mx-4 -my-10 min-h-full overflow-hidden px-4 py-10 sm:-mx-6 sm:px-6 sm:py-14 lg:-mx-8 lg:px-8" data-public-exam-lookup
+         data-types-url="@Url.Action("ExamTypes", "Home")"
+         data-lookup-url="@Url.Action("Lookup", "Home")"
+         data-site-key="@Model.RecaptchaSiteKey">
+    <div class="lookup-orb lookup-orb-one" aria-hidden="true"></div>
+    <div class="lookup-orb lookup-orb-two" aria-hidden="true"></div>
+    <div class="lookup-content mx-auto max-w-5xl space-y-8">
+    <header class="lookup-header text-center">
+        <div class="lookup-brand-mark" aria-hidden="true">CFI</div>
+        <h1 class="lookup-title mt-4 text-3xl font-bold tracking-tight sm:text-4xl">HỆ THỐNG TRA CỨU KẾT QUẢ THI CFI - HUMG</h1>
+        <p class="mx-auto mt-4 max-w-2xl text-base-content/70">Tra cứu lịch thi hoặc kết quả thi bằng mã sinh viên và ngày sinh.</p>
+    </header>
+
+    <aside class="lookup-glass lookup-guide" aria-labelledby="lookup-guide-title">
+        <div class="lookup-section-heading">
+            <span class="lookup-heading-icon" aria-hidden="true">i</span>
+            <h2 id="lookup-guide-title" class="text-lg font-semibold">Hướng dẫn tra cứu</h2>
         </div>
-        <div class="card w-full max-w-md border border-base-300 bg-base-100">
-            <div class="card-body gap-5">
-                <div>
-                    <p class="text-sm font-semibold uppercase tracking-wider text-primary">Foundation Core</p>
-                    <h2 class="card-title mt-2 text-2xl">Sẵn sàng mở rộng</h2>
-                    <p class="mt-2 text-base-content/70">Các project được chia theo trách nhiệm để tạo nền cho những tính năng tiếp theo.</p>
+        <ol class="lookup-steps">
+                <li><span class="lookup-step-number">01</span><span>Chọn thông tin tra cứu <strong>Kết quả thi</strong> hoặc <strong>Lịch thi</strong>.</span></li>
+                <li><span class="lookup-step-number">02</span><span>Chọn <strong>loại kỳ thi muốn tra cứu kết quả</strong>.</span></li>
+                <li><span class="lookup-step-number">03</span><span>Nhập các thông tin theo yêu cầu.</span></li>
+                <li><span class="lookup-step-number">04</span><span>Nhấn <strong>Tra cứu</strong> để xem kết quả.</span></li>
+            </ol>
+    </aside>
+
+    <div class="lookup-glass lookup-form-panel">
+        <div class="lookup-form-heading">
+            <div>
+                <p class="lookup-eyebrow">Cổng tra cứu sinh viên</p>
+                <h2 class="mt-1 text-xl font-semibold">Thông tin tra cứu</h2>
+            </div>
+            <span class="lookup-shield" aria-hidden="true">✓</span>
+        </div>
+        <div class="lookup-form-body">
+            <div class="grid gap-4 sm:grid-cols-2">
+                <label class="form-control">
+                    <span class="label-text mb-1 font-medium">Bạn muốn tra cứu</span>
+                    <select class="select select-bordered w-full" data-lookup-kind required>
+                        <option value="">Chọn lịch thi hoặc kết quả thi</option>
+                        <option value="Schedule">Lịch thi</option>
+                        <option value="Results">Kết quả thi</option>
+                    </select>
+                </label>
+                <label class="form-control hidden" data-exam-type-field>
+                    <span class="label-text mb-1 font-medium">Loại kỳ thi</span>
+                    <select class="select select-bordered w-full" data-exam-type required disabled>
+                        <option value="">Chọn loại kỳ thi</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="alert alert-error hidden" role="alert" data-lookup-error></div>
+            <div class="alert alert-info hidden" role="status" data-lookup-message></div>
+
+            <form class="hidden space-y-4" data-lookup-form>
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Kind" data-hidden-kind />
+                <input type="hidden" name="ExamTypeId" data-hidden-exam-type />
+                <input type="hidden" name="RecaptchaToken" data-recaptcha-token />
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <label class="form-control">
+                        <span class="label-text mb-1 font-medium">Mã sinh viên</span>
+                        <input class="input input-bordered w-full" name="StudentCode" maxlength="15" autocomplete="username" required />
+                    </label>
+                    <label class="form-control">
+                        <span class="label-text mb-1 font-medium">Ngày tháng năm sinh</span>
+                        <input class="input input-bordered w-full" name="DateOfBirth" inputmode="numeric" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" autocomplete="bday" required />
+                    </label>
                 </div>
-                <div class="divider my-0"></div>
-                <ul class="space-y-3">
-                    <li class="flex items-center gap-3">
-                        <span class="badge badge-success badge-sm">✓</span>
-                        <span>Domain và Application tách biệt</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <span class="badge badge-success badge-sm">✓</span>
-                        <span>Infrastructure và MVC WebUI</span>
-                    </li>
-                    <li class="flex items-center gap-3">
-                        <span class="badge badge-success badge-sm">✓</span>
-                        <span>Tailwind CSS cùng daisyUI</span>
-                    </li>
-                </ul>
-            </div>
+                @if (string.IsNullOrWhiteSpace(Model.RecaptchaSiteKey))
+                {
+                    <p class="text-sm text-warning">Chức năng tra cứu chưa được cấu hình reCAPTCHA.</p>
+                }
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <button type="submit" class="btn btn-primary sm:min-w-40" data-lookup-submit disabled="@(string.IsNullOrWhiteSpace(Model.RecaptchaSiteKey))">Tra cứu</button>
+                    <p class="text-xs text-base-content/60">Trang được bảo vệ bởi reCAPTCHA và áp dụng Chính sách quyền riêng tư/Điều khoản của Google.</p>
+                </div>
+            </form>
         </div>
+    </div>
+
+    <section class="lookup-glass lookup-results hidden" aria-live="polite" data-lookup-results>
+        <div class="lookup-results-heading">
+            <h2 class="text-xl font-semibold">Thông tin tra cứu</h2>
+            <span class="lookup-results-status"><span></span> Đã tìm thấy</span>
+        </div>
+        <div class="overflow-x-auto rounded-2xl border border-white/70 bg-white/50">
+            <table class="table table-sm">
+                <thead><tr data-lookup-results-head></tr></thead>
+                <tbody data-lookup-results-rows></tbody>
+            </table>
+        </div>
+    </section>
     </div>
 </section>
 
-<section class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Các lớp nền tảng">
-    <article class="card border border-base-300 bg-base-100">
-        <div class="card-body">
-            <div class="badge badge-primary badge-outline">01 · Domain</div>
-            <h2 class="card-title mt-2">Mô hình nghiệp vụ</h2>
-            <p class="text-base-content/70">Nơi đặt các quy tắc và khái niệm cốt lõi, không phụ thuộc vào giao diện hay hạ tầng.</p>
-        </div>
-    </article>
-    <article class="card border border-base-300 bg-base-100">
-        <div class="card-body">
-            <div class="badge badge-secondary badge-outline">02 · Application</div>
-            <h2 class="card-title mt-2">Luồng ứng dụng</h2>
-            <p class="text-base-content/70">Tổ chức các ca sử dụng và điều phối nghiệp vụ qua những hợp đồng rõ ràng.</p>
-        </div>
-    </article>
-    <article class="card border border-base-300 bg-base-100 sm:col-span-2 lg:col-span-1">
-        <div class="card-body">
-            <div class="badge badge-accent badge-outline">03 · Infrastructure + WebUI</div>
-            <h2 class="card-title mt-2">Tích hợp và trải nghiệm</h2>
-            <p class="text-base-content/70">Kết nối dịch vụ bên ngoài và cung cấp giao diện MVC responsive cho người dùng.</p>
-        </div>
-    </article>
-</div>
+@section Scripts {
+    @if (!string.IsNullOrWhiteSpace(Model.RecaptchaSiteKey))
+    {
+        <script src="https://www.google.com/recaptcha/api.js?render=@Model.RecaptchaSiteKey" async defer></script>
+    }
+    <script src="~/js/public-exam-lookup.js" asp-append-version="true"></script>
+}

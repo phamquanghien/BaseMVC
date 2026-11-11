@@ -19,6 +19,8 @@ using System.Threading.RateLimiting;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddHttpClient<IRecaptchaV3Verifier, RecaptchaV3Verifier>(client =>
+    client.Timeout = TimeSpan.FromSeconds(8));
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
@@ -98,6 +100,11 @@ builder.Services.AddRateLimiter(options =>
                         AccountRateLimitPolicies.PasswordReset,
                         accountRateLimits.PasswordResetPermitLimit,
                         accountRateLimits.PasswordResetWindowSeconds)
+                    : context.Request.Method == HttpMethods.Post && string.Equals(
+                        path,
+                        "/Home/Lookup",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? ("exam-lookup", 10, 60)
                     : (null, 0, 0);
 
         if (policyName is null)

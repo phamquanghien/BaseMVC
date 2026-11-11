@@ -11,7 +11,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#ffffff" />
-    <title>@ViewData["Title"] - BaseMVC</title>
+    <title>@ViewData["Title"] - CFI</title>
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 </head>
 
@@ -22,16 +22,17 @@
             <nav class="navbar mx-auto w-full max-w-7xl gap-2 px-4 sm:px-6 lg:px-8" aria-label="Điều hướng chính">
                 <div class="navbar-start w-auto flex-1">
                     <a class="btn btn-ghost gap-2 px-2 text-lg font-bold tracking-tight" asp-area=""
-                       asp-controller="Home" asp-action="Index" aria-label="BaseMVC - Trang chủ">
-                        <span class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-sm">B</span>
-                        <span>BaseMVC</span>
+                       asp-controller="Home" asp-action="Index" aria-label="CFI - Trang chủ">
+                        <span
+                        class="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-secondary text-primary-content shadow-sm">CFI</span>
                     </a>
                 </div>
                 <div class="navbar-end w-auto gap-1 sm:gap-2">
                     <ul class="menu menu-horizontal hidden items-center gap-1 px-1 md:flex">
                         @if (access.Any)
                         {
-                            <li><a asp-area="" asp-controller="AdminHome" asp-action="Index">@Icon("admin") Quản trị</a></li>
+                            <li><a asp-area="" asp-controller="AdminHome" asp-action="Index">@Icon("admin") Quản trị</a>
+                            </li>
                         }
                     </ul>
                     <partial name="_AccountMenu" />
@@ -40,35 +41,37 @@
                             <span data-nav-icon-open>@Icon("menu", "size-6")</span>
                             <span class="hidden" data-nav-icon-close>@Icon("close", "size-6")</span>
                         </summary>
-                        <div class="dropdown-content z-50 mt-3 w-[min(20rem,calc(100vw-2rem))] rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
+                        <div
+                            class="dropdown-content z-50 mt-3 w-[min(20rem,calc(100vw-2rem))] rounded-box border border-base-300 bg-base-100 p-2 shadow-xl">
                             <ul class="menu w-full gap-1 p-0">
-                                <li><a asp-area="" asp-controller="Home" asp-action="Index" class="@(homeActive ? "menu-active" : "")">@Icon("home") Trang chủ</a></li>
-                                @if (access.Any)
-                                {
-                                    <li><a asp-area="" asp-controller="AdminHome" asp-action="Index">@Icon("admin") Quản trị</a></li>
-                                }
-                            </ul>
+                                <li><a asp-area="" asp-controller="Home" asp-action="Index"
+                                           class="@(homeActive ? "menu-active" : "")">@Icon("home") Trang chủ</a></li>
+                                    @if (access.Any)
+                                    {
+                                        <li><a asp-area="" asp-controller="AdminHome" asp-action="Index">@Icon("admin") Quản
+                                            trị</a></li>
+                                        }
+                                    </ul>
+                                </div>
+                            </details>
                         </div>
-                    </details>
-                </div>
-            </nav>
-        </header>
+                    </nav>
+                </header>
 
-        <main id="main-content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
-            @RenderBody()
-        </main>
+                <main id="main-content" class="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 lg:px-8">
+                    @RenderBody()
+                </main>
 
-        <footer class="border-t border-base-300 bg-base-100">
-            <div
-                class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-base-content/70 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-                <p>&copy; @DateTime.Now.Year BaseMVC. Nền tảng khởi đầu cho ứng dụng của bạn.</p>
-                <a class="link link-hover" asp-area="" asp-controller="Home" asp-action="Privacy">Quyền riêng tư</a>
+                <footer class="border-t border-base-300 bg-base-100">
+                    <div
+                        class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-6 text-sm text-base-content/70 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+                        <p>&copy; @DateTime.Now.Year CFI - HUMG</p>
+                    </div>
+                </footer>
             </div>
-        </footer>
-    </div>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
-    @await RenderSectionAsync("Scripts", required: false)
-</body>
+            <script src="~/lib/jquery/dist/jquery.min.js"></script>
+            <script src="~/js/site.js" asp-append-version="true"></script>
+            @await RenderSectionAsync("Scripts", required: false)
+        </body>
 
-</html>
+    </html>

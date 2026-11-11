@@ -58,3 +58,17 @@ public sealed record ExamDataPage(
     int PageSize,
     int TotalCount,
     int TotalPages);
+
+public enum PublicExamLookupKind
+{
+    Schedule,
+    Results
+}
+
+public sealed record PublicExamTypeOption(int Id, string Name);
+
+public sealed record PublicExamLookupItem(string ExamName, IReadOnlyDictionary<string, string?> Values);
+
+public sealed record PublicExamLookupData(
+    IReadOnlyList<ExamDataColumn> Columns,
+    IReadOnlyList<PublicExamLookupItem> Items);
