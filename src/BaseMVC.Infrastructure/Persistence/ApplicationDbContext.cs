@@ -25,6 +25,8 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<OnlineExamSchedule> OnlineExamSchedules => Set<OnlineExamSchedule>();
 
+    public DbSet<ItStandardOnlineSchedule> ItStandardOnlineSchedules => Set<ItStandardOnlineSchedule>();
+
     public DbSet<LanguageOnlineExamSchedule> LanguageOnlineExamSchedules => Set<LanguageOnlineExamSchedule>();
 
     public DbSet<LanguageStandardCandidate> LanguageStandardCandidates => Set<LanguageStandardCandidate>();
@@ -150,6 +152,16 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
             entity.Property(schedule => schedule.RetainedSection).HasMaxLength(OnlineExamSchedule.NoteMaxLength);
         });
         ConfigureStudentRecord<OnlineExamSchedule>(builder);
+        builder.Entity<ItStandardOnlineSchedule>(entity =>
+        {
+            entity.Property(schedule => schedule.Session).HasMaxLength(ItStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.TeamsLoginStartTime).HasMaxLength(ItStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.EExamsLoginStartTime).HasMaxLength(ItStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.MicrosoftTeamsRoomName).HasMaxLength(ItStandardOnlineSchedule.ShortTextMaxLength);
+            entity.Property(schedule => schedule.Note).HasMaxLength(ItStandardOnlineSchedule.NoteMaxLength);
+            entity.Property(schedule => schedule.RetainedSection).HasMaxLength(ItStandardOnlineSchedule.NoteMaxLength);
+        });
+        ConfigureStudentRecord<ItStandardOnlineSchedule>(builder);
         builder.Entity<LanguageOnlineExamSchedule>(entity =>
         {
             entity.Property(schedule => schedule.MockExamRoom).HasMaxLength(LanguageOnlineExamSchedule.ShortTextMaxLength);

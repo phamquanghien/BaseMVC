@@ -132,7 +132,7 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
 
         var columns = new List<ExamDataColumn>();
         if (IsStudentBased)
-            columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", "Họ lót"), new("firstName", "Tên")]);
+            columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", format == ExamDataFormat.ItStandardOnline ? "Họ đệm" : "Họ lót"), new("firstName", "Tên")]);
         columns.AddRange(displayCols.Select(col => new ExamDataColumn(Key(col.Property!), col.Label)));
         return new ExamDataPage(columns, items, page, pageSize, totalCount, totalPages);
     }
@@ -254,7 +254,8 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
             }
 
             if (kind == ExamImportKind.Results &&
-                (format == ExamDataFormat.ItStandard || format == ExamDataFormat.LanguageStandard))
+                (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline ||
+                    format == ExamDataFormat.LanguageStandard))
             {
                 Prop("ValidUntil").SetValue(entity, validUntil);
             }
@@ -355,7 +356,8 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
             yield return col;
 
         if (kind == ExamImportKind.Results &&
-            (format == ExamDataFormat.ItStandard || format == ExamDataFormat.LanguageStandard))
+            (format == ExamDataFormat.ItStandard || format == ExamDataFormat.ItStandardOnline ||
+                format == ExamDataFormat.LanguageStandard))
             yield return new Col("ValidUntil", "ValidUntil", "Có hiệu lực đến ngày", "", ColType.Date);
     }
 
@@ -444,6 +446,14 @@ internal static class ExamDataSpecs
         new("Tên", null, "Tên", "An", ColType.Ignored)
     ];
 
+    private static readonly Col[] ItStandardOnlineSchedulePrefix =
+    [
+        new("Số thứ tự", null, "Số thứ tự", "1", ColType.Ignored),
+        new("Mã sinh viên", null, "Mã sinh viên", "CTTT-10210104", ColType.StudentCode),
+        new("Họ đệm", null, "Họ đệm", "Nguyễn Văn", ColType.Ignored),
+        new("Tên", null, "Tên", "An", ColType.Ignored)
+    ];
+
     private static readonly Col[] IdentityPerson =
     [
         new("LastName", "LastName", "Họ lót", "Nguyễn Văn", Required: true),
@@ -494,6 +504,16 @@ internal static class ExamDataSpecs
             new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Kỹ năng nghe"),
             new("Đợt bảo lưu", "RetentionBatch", "Đợt bảo lưu", "Đợt 1")
         ]),
+        new ExamDataSpec<ItStandardOnlineSchedule>(ExamDataFormat.ItStandardOnline, ExamImportKind.Candidates,
+        [
+            .. ItStandardOnlineSchedulePrefix,
+            new("Ca thi", "Session", "Ca thi", "Ca 1"),
+            new("Thời gian bắt đầu đăng nhập Microsoft Teams", "TeamsLoginStartTime", "Thời gian bắt đầu đăng nhập Microsoft Teams", "08:00"),
+            new("Thời gian bắt đầu đăng nhập HUMG e-Exams", "EExamsLoginStartTime", "Thời gian bắt đầu đăng nhập HUMG e-Exams", "08:15"),
+            new("Tên phòng thi trên Microsoft Teams", "MicrosoftTeamsRoomName", "Tên phòng thi trên Microsoft Teams", "HUMG-IT-01"),
+            new("Ghi chú/Đợt BL", "Note", "Ghi chú/Đợt BL", "Đợt 1"),
+            new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Thực hành")
+        ]),
         new ExamDataSpec<ItExamCandidate>(ExamDataFormat.ItStandard, ExamImportKind.Candidates,
         [
             .. StudentPrefix,
@@ -505,6 +525,14 @@ internal static class ExamDataSpecs
             new("RetainedSection", "RetainedSection", "Phần bảo lưu", "")
         ]),
         new ExamDataSpec<ItExamResult>(ExamDataFormat.ItStandard, ExamImportKind.Results,
+        [
+            .. StudentPrefix,
+            new("MultipleChoiceScore", "MultipleChoiceScore", "Điểm trắc nghiệm", "7.5"),
+            new("PracticalScore", "PracticalScore", "Điểm thực hành", "8"),
+            new("FinalScore", "FinalScore", "Điểm tổng", "75", ColType.Score100),
+            new("Note", "Note", "Ghi chú", "")
+        ]),
+        new ExamDataSpec<ItExamResult>(ExamDataFormat.ItStandardOnline, ExamImportKind.Results,
         [
             .. StudentPrefix,
             new("MultipleChoiceScore", "MultipleChoiceScore", "Điểm trắc nghiệm", "7.5"),
