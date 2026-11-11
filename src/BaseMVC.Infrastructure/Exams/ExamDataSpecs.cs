@@ -691,7 +691,7 @@ internal static class ExamDataSpecs
             new("Session", "Session", "Ca thi", "Ca 1"),
             new("ExamRoom", "ExamRoom", "Phòng thi", "P.101"),
             .. SpeakingSchedule
-        ]),
+        ], enableScheduleEditing: true),
         new ExamDataSpec<LanguagePlacementResult>(ExamDataFormat.LanguagePlacement, ExamImportKind.Results,
             [.. StudentPrefix, .. LanguageScores]),
         new ExamDataSpec<EnglishIntensiveResult>(ExamDataFormat.EnglishIntensive, ExamImportKind.Results,
