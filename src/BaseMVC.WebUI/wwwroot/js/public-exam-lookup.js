@@ -89,11 +89,16 @@
     submit.disabled = true;
     submit.textContent = "Đang xác minh...";
     try {
-      const token = await new Promise((resolve, reject) => {
-        window.grecaptcha.ready(() => {
-          window.grecaptcha.execute(siteKey, { action: "exam_lookup" }).then(resolve, reject);
+      let token;
+      try {
+        token = await new Promise((resolve, reject) => {
+          window.grecaptcha.ready(() => {
+            window.grecaptcha.execute(siteKey, { action: "exam_lookup" }).then(resolve, reject);
+          });
         });
-      });
+      } catch {
+        throw new Error("Thao tác người dùng không hợp lệ, vui lòng tắt trình duyệt web và thử lại.");
+      }
       tokenInput.value = token;
       const response = await fetch(config.lookupUrl, {
         method: "POST",
@@ -101,7 +106,12 @@
         headers: { Accept: "application/json" },
       });
       const data = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(data?.error || "Bạn thao tác quá nhanh. Vui lòng thử lại sau.");
+      if (!response.ok) {
+        const fallback = response.status === 429
+          ? "Bạn thao tác quá nhanh. Vui lòng thử lại sau."
+          : "Không thể thực hiện tra cứu. Vui lòng thử lại sau.";
+        throw new Error(data?.error || fallback);
+      }
       if (!data) throw new Error("Không thể đọc phản hồi tra cứu. Vui lòng thử lại.");
       if (data.message) {
         message.textContent = data.message;

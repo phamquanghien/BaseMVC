@@ -43,7 +43,7 @@ public class HomeController(ISender sender, IConfiguration configuration, IRecap
         }
 
         if (!await recaptchaVerifier.VerifyAsync(request.RecaptchaToken, LookupAction, cancellationToken))
-            return BadRequest(new { error = "Không thể xác minh reCAPTCHA. Vui lòng thử lại." });
+            return BadRequest(new { error = "Thao tác người dùng không hợp lệ, vui lòng tắt trình duyệt web và thử lại." });
 
         var result = await sender.Send(
             new LookupPublicExamDataQuery(request.ExamTypeId, lookupKind, request.StudentCode, dateOfBirth),
@@ -53,7 +53,11 @@ public class HomeController(ISender sender, IConfiguration configuration, IRecap
         {
             columns = result?.Columns ?? [],
             items,
-            message = items.Count == 0 ? "Không tìm thấy thông tin tra cứu phù hợp." : null
+            message = items.Count == 0
+                ? lookupKind == PublicExamLookupKind.Schedule
+                    ? "Chưa có lịch thi tương ứng."
+                    : "Chưa có kết quả thi tương ứng."
+                : null
         });
     }
 
