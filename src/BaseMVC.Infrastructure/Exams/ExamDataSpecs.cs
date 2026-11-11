@@ -714,6 +714,15 @@ internal static class ExamDataSpecs
             new("Session", "Session", "Ca thi", "Ca 1"),
             new("ExamDuration", "ExamDuration", "Thời gian thi", "09h00-11h00"),
             new("ExamRoom", "ExamRoom", "Phòng thi", "P.101")
+        ],
+        enableScheduleEditing: true,
+        scheduleEditProperties:
+        [
+            nameof(ItBasicCertificateCandidate.Note),
+            nameof(ItBasicCertificateCandidate.ExamDate),
+            nameof(ItBasicCertificateCandidate.Session),
+            nameof(ItBasicCertificateCandidate.ExamDuration),
+            nameof(ItBasicCertificateCandidate.ExamRoom)
         ]),
         new ExamDataSpec<ItBasicCertificateResult>(ExamDataFormat.ItBasicCertificate, ExamImportKind.Results,
         [
