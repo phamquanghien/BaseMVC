@@ -39,6 +39,10 @@ internal interface IExamDataSpec
     Task<ExamDataPage> SearchAsync(
         ApplicationDbContext db, int examId, string? search, int page, int pageSize, CancellationToken cancellationToken);
 
+    Task<ExamDataOutcome<bool>> UpdateScheduleAsync(
+        ApplicationDbContext db, int examId, int recordId, IReadOnlyDictionary<string, string?> values,
+        string? actorUserId, CancellationToken cancellationToken);
+
     Task<PublicExamLookupData> LookupStudentAsync(
         ApplicationDbContext db, int examTypeId, int studentId, CancellationToken cancellationToken);
 
@@ -51,7 +55,12 @@ internal interface IExamDataSpec
     Task<bool> AnyForExamsAsync(ApplicationDbContext db, IReadOnlyCollection<int> examIds, CancellationToken cancellationToken);
 }
 
-internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind, IReadOnlyList<Col> cols) : IExamDataSpec
+internal sealed class ExamDataSpec<T>(
+    ExamDataFormat format,
+    ExamImportKind kind,
+    IReadOnlyList<Col> cols,
+    bool enableScheduleEditing = false,
+    IReadOnlyCollection<string>? scheduleEditProperties = null) : IExamDataSpec
     where T : ExamRecord, new()
 {
     private static readonly string[] DateFormats = ["d/M/yyyy", "d/M/yy"];
@@ -64,6 +73,12 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
     public bool SupportsStudentLookup => IsStudentBased;
 
     public IReadOnlyList<Col> Cols => cols;
+
+    private IReadOnlyList<Col> EditableScheduleCols => !enableScheduleEditing || kind != ExamImportKind.Candidates
+        ? []
+        : cols.Where(col => col.Property is not null &&
+            (scheduleEditProperties is null || scheduleEditProperties.Contains(col.Property, StringComparer.Ordinal)))
+            .ToArray();
 
     public Task<int> CountAsync(ApplicationDbContext db, int examId, CancellationToken cancellationToken) =>
         db.Set<T>().CountAsync(item => item.ExamId == examId, cancellationToken);
@@ -114,9 +129,12 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
         }
 
         var displayCols = DisplayCols();
+        var editableScheduleCols = EditableScheduleCols;
         var items = rows.Select(row =>
         {
             var values = new Dictionary<string, string?>();
+            if (editableScheduleCols.Count > 0)
+                values["id"] = row.Id.ToString(CultureInfo.InvariantCulture);
             if (IsStudentBased)
             {
                 var student = students.GetValueOrDefault(((StudentExamRecord)(ExamRecord)row).StudentId);
@@ -134,8 +152,96 @@ internal sealed class ExamDataSpec<T>(ExamDataFormat format, ExamImportKind kind
         if (IsStudentBased)
             columns.AddRange([new("studentCode", "Mã sinh viên"), new("lastName", format is ExamDataFormat.ItStandardOnline or ExamDataFormat.LanguageStandardOnline ? "Họ đệm" : "Họ lót"), new("firstName", "Tên")]);
         columns.AddRange(displayCols.Select(col => new ExamDataColumn(Key(col.Property!), col.Label)));
-        return new ExamDataPage(columns, items, page, pageSize, totalCount, totalPages);
+        var editFields = editableScheduleCols
+            .Select(col => new ExamScheduleEditField(Key(col.Property!), col.Label))
+            .ToArray();
+        return new ExamDataPage(columns, items, page, pageSize, totalCount, totalPages, editFields);
     }
+
+    public async Task<ExamDataOutcome<bool>> UpdateScheduleAsync(
+        ApplicationDbContext db, int examId, int recordId, IReadOnlyDictionary<string, string?> values,
+        string? actorUserId, CancellationToken cancellationToken)
+    {
+        var editableCols = EditableScheduleCols;
+        if (editableCols.Count == 0)
+            return ExamDataOutcome<bool>.BadRequest("Định dạng kỳ thi này không hỗ trợ sửa lịch thi.");
+        if (values.Count == 0)
+            return ExamDataOutcome<bool>.BadRequest("Vui lòng nhập thông tin cần cập nhật.");
+
+        var fieldsByKey = editableCols.ToDictionary(col => Key(col.Property!), StringComparer.Ordinal);
+        var unknownField = values.Keys.FirstOrDefault(key => !fieldsByKey.ContainsKey(key));
+        if (unknownField is not null)
+            return ExamDataOutcome<bool>.BadRequest("Có trường dữ liệu không được phép sửa.");
+
+        var row = await db.Set<T>().FirstOrDefaultAsync(
+            item => item.ExamId == examId && item.Id == recordId, cancellationToken);
+        if (row is null)
+            return ExamDataOutcome<bool>.NotFound("Không tìm thấy lịch thi cần sửa.");
+
+        var errors = new List<string>();
+        foreach (var (key, rawValue) in values)
+        {
+            var col = fieldsByKey[key];
+            var text = rawValue?.Trim() ?? string.Empty;
+            if (col.Type == ColType.Date)
+            {
+                if (text.Length == 0)
+                {
+                    Set(row, col.Property!, null);
+                    continue;
+                }
+
+                if (!DateOnly.TryParseExact(
+                    text,
+                    [.. DateFormats, "yyyy-MM-dd"],
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var date))
+                {
+                    errors.Add($"{col.Label} phải có định dạng dd/mm/yyyy.");
+                    continue;
+                }
+
+                Set(row, col.Property!, date);
+                continue;
+            }
+
+            var maxLength = ScheduleTextMaxLength(col.Property!);
+            if (text.Length > maxLength)
+            {
+                errors.Add($"{col.Label} tối đa {maxLength} ký tự.");
+                continue;
+            }
+
+            Set(row, col.Property!, text.Length == 0 ? null : text);
+        }
+
+        if (errors.Count > 0)
+            return ExamDataOutcome<bool>.BadRequest(string.Join(" ", errors));
+
+        row.LastModifiedBy = actorUserId;
+        row.LastModifiedAtUtc = DateTimeOffset.UtcNow;
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return ExamDataOutcome<bool>.Conflict("Không thể cập nhật lịch thi do dữ liệu đã thay đổi. Vui lòng tải lại và thử lại.");
+        }
+
+        return ExamDataOutcome<bool>.Success(true);
+    }
+
+    private static int ScheduleTextMaxLength(string propertyName) => propertyName switch
+    {
+        "Note" or "RetentionNote" or "RetentionExam" or "RetentionBatch" or "RetainedSection" => 1000,
+        "MicrosoftTeamsRoomName" or "TeamsDeviceLoginStartTime" or "EExamsDeviceLoginStartTime" or
+        "TeamsLoginStartTime" or "TeamsLoginStartTimeSpeaking" or "EExamsStartTime" or "SebLoginStartTime" or
+        "ExamRoom" or "ExamRoomSpeaking" or "MockExamRoom" or "Session" or "SessionSpeaking" or "ExamDuration" => 200,
+        _ => ExamDataLimits.For(propertyName)
+    };
 
     public async Task<PublicExamLookupData> LookupStudentAsync(
         ApplicationDbContext db, int examTypeId, int studentId, CancellationToken cancellationToken)
@@ -531,7 +637,7 @@ internal static class ExamDataSpecs
             new("ExamRoom", "ExamRoom", "Phòng thi", "P.101"),
             new("RetentionNote", "RetentionNote", "Bảo lưu", ""),
             new("RetainedSection", "RetainedSection", "Phần bảo lưu", "")
-        ]),
+        ], enableScheduleEditing: true),
         new ExamDataSpec<ItExamResult>(ExamDataFormat.ItStandard, ExamImportKind.Results,
         [
             .. StudentPrefix,

@@ -14,6 +14,10 @@ public sealed record SearchExamDataQuery(
     int ExamId, ExamImportKind Kind, string? Search, int Page, int PageSize)
     : IRequest<ExamDataOutcome<ExamDataPage>>;
 
+public sealed record UpdateExamScheduleCommand(
+    int ExamId, int RecordId, IReadOnlyDictionary<string, string?> Values, string? ActorUserId)
+    : IRequest<ExamDataOutcome<bool>>;
+
 public sealed class GetExamImportTemplateHandler(IExamImportService service)
     : IRequestHandler<GetExamImportTemplateQuery, ExamDataOutcome<byte[]>>
 {
@@ -41,4 +45,11 @@ public sealed class SearchExamDataHandler(IExamImportService service)
 {
     public Task<ExamDataOutcome<ExamDataPage>> Handle(SearchExamDataQuery request, CancellationToken cancellationToken) =>
         service.SearchDataAsync(request.ExamId, request.Kind, request.Search, request.Page, request.PageSize, cancellationToken);
+}
+
+public sealed class UpdateExamScheduleHandler(IExamImportService service)
+    : IRequestHandler<UpdateExamScheduleCommand, ExamDataOutcome<bool>>
+{
+    public Task<ExamDataOutcome<bool>> Handle(UpdateExamScheduleCommand request, CancellationToken cancellationToken) =>
+        service.UpdateScheduleAsync(request.ExamId, request.RecordId, request.Values, request.ActorUserId, cancellationToken);
 }

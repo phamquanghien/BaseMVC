@@ -50,6 +50,8 @@ public sealed record ExamSummaryDto(
 
 public sealed record ExamDataColumn(string Key, string Label);
 
+public sealed record ExamScheduleEditField(string Key, string Label);
+
 /// <summary>Một trang dữ liệu thi; mỗi dòng là từ điển khóa (camelCase) - giá trị hiển thị.</summary>
 public sealed record ExamDataPage(
     IReadOnlyList<ExamDataColumn> Columns,
@@ -57,7 +59,8 @@ public sealed record ExamDataPage(
     int Page,
     int PageSize,
     int TotalCount,
-    int TotalPages);
+    int TotalPages,
+    IReadOnlyList<ExamScheduleEditField> EditableFields);
 
 public enum PublicExamLookupKind
 {

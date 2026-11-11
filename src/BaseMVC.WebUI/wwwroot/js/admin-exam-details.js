@@ -9,18 +9,84 @@
     dataUrl: root.dataset.dataUrl,
     importUrl: root.dataset.importUrl,
     templateUrl: root.dataset.templateUrl,
+    editScheduleUrl: root.dataset.editScheduleUrl,
     statusUrl: root.dataset.statusUrl,
     canImport: root.dataset.canImport === "true",
+    canEditSchedules: root.dataset.canEditSchedules === "true",
     canChangeStatus: root.dataset.canChangeStatus === "true",
   };
   const errorBanner = $("[data-details-error]");
+  const scheduleEditModal = $("[data-schedule-edit-modal]");
+  const scheduleEditFields = $("[data-schedule-edit-fields]");
+  const scheduleEditError = $("[data-schedule-edit-error]");
+  const scheduleEditSubmit = $("[data-schedule-edit-submit]");
+  const scheduleEditCancel = $("[data-schedule-edit-cancel]");
 
-  if (!adminApi || !(errorBanner instanceof HTMLElement) || !config.summaryUrl || !config.dataUrl) {
+  if (!adminApi || !(errorBanner instanceof HTMLElement) || !config.summaryUrl || !config.dataUrl ||
+      (config.canEditSchedules && (!(scheduleEditModal instanceof HTMLDialogElement) ||
+        !(scheduleEditFields instanceof HTMLElement) || !(scheduleEditError instanceof HTMLElement) ||
+        !(scheduleEditSubmit instanceof HTMLButtonElement) || !(scheduleEditCancel instanceof HTMLButtonElement) ||
+        !config.editScheduleUrl))) {
     throw new Error("Exam details configuration is incomplete.");
   }
 
   const { showError, hideError } = adminApi;
   const request = (url, options = {}) => adminApi.request(url, options, "#exam-details-antiforgery");
+  let saveScheduleEdit;
+
+  if (config.canEditSchedules) {
+    scheduleEditCancel.addEventListener("click", () => scheduleEditModal.close());
+    scheduleEditSubmit.addEventListener("click", async () => {
+      if (typeof saveScheduleEdit !== "function") return;
+      scheduleEditSubmit.disabled = true;
+      scheduleEditSubmit.textContent = "Đang lưu...";
+      hideError(scheduleEditError);
+      try {
+        await saveScheduleEdit();
+        scheduleEditModal.close();
+      } catch (error) {
+        showError(scheduleEditError, error.message || "Không thể cập nhật lịch thi.");
+      } finally {
+        scheduleEditSubmit.disabled = false;
+        scheduleEditSubmit.textContent = "Lưu lịch thi";
+      }
+    });
+    scheduleEditModal.addEventListener("close", () => {
+      saveScheduleEdit = null;
+      scheduleEditFields.replaceChildren();
+      hideError(scheduleEditError);
+    });
+  }
+
+  const openScheduleEditor = (item, fields, onSaved) => {
+    if (!config.canEditSchedules || !item.id) return;
+    scheduleEditFields.replaceChildren();
+    for (const field of fields) {
+      const label = document.createElement("label");
+      label.className = "form-control";
+      const title = document.createElement("span");
+      title.className = "label-text font-medium";
+      title.textContent = field.label;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "input input-bordered w-full";
+      input.dataset.fieldKey = field.key;
+      input.value = item[field.key] ?? "";
+      label.append(title, input);
+      scheduleEditFields.append(label);
+    }
+
+    saveScheduleEdit = async () => {
+      const values = Object.fromEntries(
+        [...scheduleEditFields.querySelectorAll("input[data-field-key]")]
+          .map((input) => [input.dataset.fieldKey, input.value]),
+      );
+      const url = config.editScheduleUrl.replace(/\/0$/, `/${item.id}`);
+      await request(url, { method: "PUT", body: JSON.stringify({ values }) });
+      await onSaved();
+    };
+    scheduleEditModal.showModal();
+  };
 
   const statusLabels = {
     NotStarted: "Chưa bắt đầu",
@@ -99,18 +165,19 @@
     let timer;
     let loadToken = 0;
 
-    const render = (columns, items) => {
+    const render = (columns, items, editableFields = []) => {
       head.replaceChildren(...columns.map((column) => {
         const cell = document.createElement("th");
         cell.textContent = column.label;
         return cell;
-      }));
+      }), ...(config.canEditSchedules && editableFields.length > 0 ? [Object.assign(document.createElement("th"), { textContent: "Thao tác" })] : []));
       rows.replaceChildren();
       if (items.length === 0) {
         const row = document.createElement("tr");
         const cell = document.createElement("td");
         cell.colSpan = Math.max(columns.length, 1);
         cell.className = "py-8 text-center text-base-content/60";
+        if (config.canEditSchedules && editableFields.length > 0) cell.colSpan += 1;
         cell.textContent = "Chưa có dữ liệu.";
         row.append(cell);
         rows.append(row);
@@ -122,6 +189,17 @@
           const cell = document.createElement("td");
           cell.textContent = item[column.key] ?? "";
           row.append(cell);
+        }
+        if (config.canEditSchedules && editableFields.length > 0) {
+          const actionCell = document.createElement("td");
+          const editButton = document.createElement("button");
+          editButton.type = "button";
+          editButton.className = "btn btn-xs btn-outline btn-primary";
+          editButton.textContent = "Sửa";
+          editButton.setAttribute("aria-label", `Sửa lịch thi của ${item.studentCode ?? item.identityNumber ?? "thí sinh"}`);
+          editButton.addEventListener("click", () => openScheduleEditor(item, editableFields, load));
+          actionCell.append(editButton);
+          row.append(actionCell);
         }
         rows.append(row);
       }
@@ -150,7 +228,7 @@
         pageLabel.textContent = `Trang ${data.page} / ${Math.max(data.totalPages, 1)}`;
         previous.disabled = data.page <= 1;
         next.disabled = data.page >= data.totalPages;
-        render(data.columns, data.items);
+        render(data.columns, data.items, data.editableFields ?? []);
       } catch (error) {
         if (token === loadToken) showError(errorBanner, error.message || "Không thể tải dữ liệu.");
       }

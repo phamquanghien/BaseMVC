@@ -49,6 +49,21 @@ public sealed class ExamsController(ISender sender) : Controller
     }
 
     [Authorize(Policy = "Permissions.Exams.Update")]
+    [HttpPut("{id:int}/data/{recordId:int}")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateSchedule(
+        int id, int recordId, [FromBody] ExamScheduleEditRequest request, CancellationToken cancellationToken)
+    {
+        var outcome = await sender.Send(
+            new UpdateExamScheduleCommand(
+                id, recordId, request.Values, User.FindFirstValue(ClaimTypes.NameIdentifier)),
+            cancellationToken);
+        return outcome.StatusCode == 200
+            ? NoContent()
+            : ToErrorResult(outcome.StatusCode, outcome.Error);
+    }
+
+    [Authorize(Policy = "Permissions.Exams.Update")]
     [HttpGet("{id:int}/import/template")]
     public async Task<IActionResult> ImportTemplate(int id, [FromQuery] ExamImportKind kind, CancellationToken cancellationToken)
     {

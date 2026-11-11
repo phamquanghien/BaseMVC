@@ -12,7 +12,9 @@
          data-import-url="@Url.Action("Import", "Exams", new { area = "", id = Model })"
          data-status-url="@Url.Action("ChangeStatus", "Exams", new { area = "", id = Model })"
          data-template-url="@Url.Action("ImportTemplate", "Exams", new { area = "", id = Model })"
+         data-edit-schedule-url="@Url.Action("UpdateSchedule", "Exams", new { area = "", id = Model, recordId = 0 })"
          data-can-import="@canImport.ToString().ToLowerInvariant()"
+         data-can-edit-schedules="@canImport.ToString().ToLowerInvariant()"
          data-can-change-status="@canChangeStatus.ToString().ToLowerInvariant()">
     <div>
         <a class="link link-primary text-sm" href="@Url.Action("Index", "Exams", new { area = "" })">← Danh sách kỳ thi</a>
@@ -117,6 +119,26 @@
             </div>
         </div>
     </div>
+
+    @if (canImport)
+    {
+        <dialog class="modal" data-schedule-edit-modal>
+            <div class="modal-box max-w-2xl">
+                <form method="dialog">
+                    <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+                </form>
+                <h2 class="text-xl font-bold">Sửa lịch thi</h2>
+                <p class="mt-2 text-sm text-base-content/70">Chỉ các thông tin lịch thi được cập nhật; hồ sơ thí sinh được giữ nguyên.</p>
+                <div class="alert alert-error mt-4 hidden" role="alert" data-schedule-edit-error></div>
+                <div class="mt-5 grid gap-4 sm:grid-cols-2" data-schedule-edit-fields></div>
+                <div class="modal-action">
+                    <button type="button" class="btn btn-ghost" data-schedule-edit-cancel>Hủy</button>
+                    <button type="button" class="btn btn-primary" data-schedule-edit-submit>Lưu lịch thi</button>
+                </div>
+            </div>
+            <form method="dialog" class="modal-backdrop"><button aria-label="Đóng">đóng</button></form>
+        </dialog>
+    }
 
     <div class="card border border-base-300 bg-base-100 shadow-sm" data-results-card>
         <div class="card-body gap-4 p-4 sm:p-6">

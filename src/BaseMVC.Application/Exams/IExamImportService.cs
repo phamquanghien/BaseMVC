@@ -14,4 +14,8 @@ public interface IExamImportService
     Task<ExamDataOutcome<ExamDataPage>> SearchDataAsync(
         int examId, ExamImportKind kind, string? search, int page, int pageSize,
         CancellationToken cancellationToken);
+
+    Task<ExamDataOutcome<bool>> UpdateScheduleAsync(
+        int examId, int recordId, IReadOnlyDictionary<string, string?> values, string? actorUserId,
+        CancellationToken cancellationToken);
 }

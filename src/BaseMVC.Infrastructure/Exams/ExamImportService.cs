@@ -110,4 +110,15 @@ public sealed class ExamImportService(ApplicationDbContext dbContext, IAuditLogW
         return ExamDataOutcome<ExamDataPage>.Success(
             await resolved.Spec.SearchAsync(dbContext, examId, search, page, pageSize, cancellationToken));
     }
+
+    public async Task<ExamDataOutcome<bool>> UpdateScheduleAsync(
+        int examId, int recordId, IReadOnlyDictionary<string, string?> values, string? actorUserId,
+        CancellationToken cancellationToken)
+    {
+        var resolved = await ResolveSpecAsync(examId, ExamImportKind.Candidates, cancellationToken);
+        if (resolved.Spec is null)
+            return new ExamDataOutcome<bool>(resolved.StatusCode, Error: resolved.Error);
+        return await resolved.Spec.UpdateScheduleAsync(
+            dbContext, examId, recordId, values, actorUserId, cancellationToken);
+    }
 }
