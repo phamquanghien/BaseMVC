@@ -75,6 +75,53 @@ jobs:
           name: basemvc-publish
           path: ${{ runner.temp }}/publish/
 
+      - name: Configure reCAPTCHA runtime secrets
+        env:
+          RECAPTCHA_SITE_KEY: ${{ secrets.RECAPTCHA_SITE_KEY }}
+          RECAPTCHA_SECRET_KEY: ${{ secrets.RECAPTCHA_SECRET_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          web_config = Path(os.environ["RUNNER_TEMP"]) / "publish" / "web.config"
+          if not web_config.is_file():
+              raise SystemExit("Published web.config was not found.")
+
+          values = {
+              "RECAPTCHA_SITE_KEY": os.environ.get("RECAPTCHA_SITE_KEY", ""),
+              "RECAPTCHA_SECRET_KEY": os.environ.get("RECAPTCHA_SECRET_KEY", ""),
+          }
+          missing = [name for name, value in values.items() if not value]
+          if missing:
+              raise SystemExit("Missing GitHub Actions secrets: " + ", ".join(missing))
+
+          tree = ET.parse(web_config)
+          root = tree.getroot()
+          asp_net_core = root.find(".//system.webServer/aspNetCore")
+          if asp_net_core is None:
+              raise SystemExit("The ASP.NET Core Module configuration was not found in web.config.")
+
+          environment_variables = asp_net_core.find("environmentVariables")
+          if environment_variables is None:
+              environment_variables = ET.SubElement(asp_net_core, "environmentVariables")
+
+          for name, value in values.items():
+              variable = next(
+                  (item for item in environment_variables.findall("environmentVariable")
+                   if item.get("name") == name),
+                  None,
+              )
+              if variable is None:
+                  variable = ET.SubElement(environment_variables, "environmentVariable")
+              variable.set("name", name)
+              variable.set("value", value)
+
+          ET.indent(tree, space="  ")
+          tree.write(web_config, encoding="utf-8", xml_declaration=True)
+          PY
+
       - name: Create IIS maintenance page
         run: |
           cat > "$RUNNER_TEMP/app_offline.htm" <<'EOF'
