@@ -511,14 +511,16 @@ namespace BaseMVC.Infrastructure.Persistence.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateOnly?>("ExamDate")
+                    b.Property<string>("ExamDate")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ExamRoom")
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateOnly?>("ExamDateSpeaking")
+                    b.Property<string>("ExamDateSpeaking")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ExamRoomSpeaking")

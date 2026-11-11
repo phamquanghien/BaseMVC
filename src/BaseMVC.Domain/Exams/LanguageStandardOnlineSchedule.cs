@@ -12,7 +12,7 @@ public sealed class LanguageStandardOnlineSchedule : StudentExamRecord
 
     public string? Note { get; set; }
 
-    public DateOnly? ExamDate { get; set; }
+    public string? ExamDate { get; set; }
 
     public string? ExamRoom { get; set; }
 
@@ -20,7 +20,7 @@ public sealed class LanguageStandardOnlineSchedule : StudentExamRecord
 
     public string? EExamsStartTime { get; set; }
 
-    public DateOnly? ExamDateSpeaking { get; set; }
+    public string? ExamDateSpeaking { get; set; }
 
     public string? ExamRoomSpeaking { get; set; }
 

@@ -554,11 +554,11 @@ internal static class ExamDataSpecs
             new("Phần bảo lưu", "RetainedSection", "Phần bảo lưu", "Nghe"),
             new("Đợt bảo lưu", "RetentionBatch", "Đợt bảo lưu", "Đợt 1"),
             new("Ghi chú", "Note", "Ghi chú", ""),
-            new("Ngày thi Nghe Đọc Viết", "ExamDate", "Ngày thi Nghe Đọc Viết", "20/11/2026", ColType.Date),
+            new("Ngày thi Nghe Đọc Viết", "ExamDate", "Ngày thi Nghe Đọc Viết", "Ca 1, ngày 08/06/2026"),
             new("Phòng thi Nghe Đọc Viết trên Microsoft TEAMS", "ExamRoom", "Phòng thi Nghe Đọc Viết trên Microsoft TEAMS", "HUMG-NN-LRW"),
             new("Thời gian đăng nhập Microsoft TEAMS", "TeamsLoginStartTime", "Thời gian đăng nhập Microsoft TEAMS (Nghe Đọc Viết)", "08:00"),
             new("Thời gian bắt đầu làm bài trên HUMG e-Exams", "EExamsStartTime", "Thời gian bắt đầu làm bài trên HUMG e-Exams", "08:15"),
-            new("Ngày thi Nói", "ExamDateSpeaking", "Ngày thi Nói", "21/11/2026", ColType.Date),
+            new("Ngày thi Nói", "ExamDateSpeaking", "Ngày thi Nói", "Ca 1, ngày 09/06/2026"),
             new("Phòng thi Nói Microsoft TEAMS", "ExamRoomSpeaking", "Phòng thi Nói Microsoft TEAMS", "HUMG-NN-SPEAK"),
             new("Thời gian đăng nhập Microsoft TEAMS", "TeamsLoginStartTimeSpeaking", "Thời gian đăng nhập Microsoft TEAMS (Nói)", "09:00")
         ]),
