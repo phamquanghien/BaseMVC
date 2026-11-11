@@ -6,6 +6,6 @@ public interface IPublicExamLookupService
         PublicExamLookupKind kind, CancellationToken cancellationToken);
 
     Task<PublicExamLookupData?> LookupAsync(
-        int examTypeId, PublicExamLookupKind kind, string studentCode, DateOnly dateOfBirth,
+        int examTypeId, PublicExamLookupKind kind, string identifier, DateOnly dateOfBirth,
         CancellationToken cancellationToken);
 }

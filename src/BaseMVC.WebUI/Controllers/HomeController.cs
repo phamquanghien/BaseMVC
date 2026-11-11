@@ -35,18 +35,18 @@ public class HomeController(ISender sender, IConfiguration configuration, IRecap
         if (request.ExamTypeId <= 0 ||
             !Enum.TryParse<PublicExamLookupKind>(request.Kind, ignoreCase: true, out var lookupKind) ||
             !Enum.IsDefined(lookupKind) ||
-            string.IsNullOrWhiteSpace(request.StudentCode) ||
-            request.StudentCode.Trim().Length > 15 ||
+            string.IsNullOrWhiteSpace(request.Identifier) ||
+            request.Identifier.Trim().Length > 50 ||
             !DateOnly.TryParseExact(request.DateOfBirth.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateOfBirth))
         {
-            return BadRequest(new { error = "Kiểm tra lại loại tra cứu, mã sinh viên và ngày sinh (dd/mm/yyyy)." });
+            return BadRequest(new { error = "Kiểm tra lại loại tra cứu, mã định danh và ngày sinh (dd/mm/yyyy)." });
         }
 
         if (!await recaptchaVerifier.VerifyAsync(request.RecaptchaToken, LookupAction, cancellationToken))
             return BadRequest(new { error = "Thao tác người dùng không hợp lệ, vui lòng tắt trình duyệt web và thử lại." });
 
         var result = await sender.Send(
-            new LookupPublicExamDataQuery(request.ExamTypeId, lookupKind, request.StudentCode, dateOfBirth),
+            new LookupPublicExamDataQuery(request.ExamTypeId, lookupKind, request.Identifier, dateOfBirth),
             cancellationToken);
         var items = result?.Items ?? [];
         return Ok(new

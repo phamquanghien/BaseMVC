@@ -6,7 +6,7 @@ public sealed class PublicExamLookupRequest
 
     public string Kind { get; set; } = string.Empty;
 
-    public string StudentCode { get; set; } = string.Empty;
+    public string Identifier { get; set; } = string.Empty;
 
     public string DateOfBirth { get; set; } = string.Empty;
 

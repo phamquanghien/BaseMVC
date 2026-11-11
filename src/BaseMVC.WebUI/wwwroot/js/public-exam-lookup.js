@@ -16,6 +16,8 @@
   const tokenInput = root.querySelector("[data-recaptcha-token]");
   const hiddenKind = root.querySelector("[data-hidden-kind]");
   const hiddenType = root.querySelector("[data-hidden-exam-type]");
+  const identifierLabel = root.querySelector("[data-identifier-label]");
+  const identifierInput = form.querySelector('[name="Identifier"]');
   const config = { typesUrl: root.dataset.typesUrl, lookupUrl: root.dataset.lookupUrl };
 
   if (!(kind instanceof HTMLSelectElement) || !(typeField instanceof HTMLElement) ||
@@ -24,7 +26,8 @@
       !(results instanceof HTMLElement) || !(head instanceof HTMLElement) ||
       !(rows instanceof HTMLElement) || !(submit instanceof HTMLButtonElement) ||
       !(tokenInput instanceof HTMLInputElement) || !(hiddenKind instanceof HTMLInputElement) ||
-      !(hiddenType instanceof HTMLInputElement) || !config.typesUrl || !config.lookupUrl) return;
+      !(hiddenType instanceof HTMLInputElement) || !(identifierLabel instanceof HTMLElement) ||
+      !(identifierInput instanceof HTMLInputElement) || !config.typesUrl || !config.lookupUrl) return;
 
   let typeRequest = 0;
   const showError = (text) => {
@@ -57,7 +60,11 @@
       if (!response.ok) throw new Error(data?.error || "Không thể tải loại kỳ thi.");
 
       examType.replaceChildren(new Option("Chọn loại kỳ thi", ""));
-      for (const item of data.items) examType.add(new Option(item.name, String(item.id)));
+      for (const item of data.items) {
+        const option = new Option(item.name, String(item.id));
+        option.dataset.identifierLabel = item.identifierLabel;
+        examType.add(option);
+      }
       examType.disabled = data.items.length === 0;
       if (data.items.length === 0) {
         message.textContent = "Hiện chưa có loại kỳ thi phù hợp để tra cứu.";
@@ -75,6 +82,10 @@
     form.classList.toggle("hidden", !selected);
     hiddenKind.value = kind.value;
     hiddenType.value = examType.value;
+    const selectedOption = examType.selectedOptions[0];
+    const label = selectedOption?.dataset.identifierLabel || "Mã sinh viên";
+    identifierLabel.textContent = label;
+    identifierInput.autocomplete = label === "Căn cước công dân" ? "off" : "username";
   });
 
   form.addEventListener("submit", async (event) => {

@@ -65,7 +65,7 @@ public enum PublicExamLookupKind
     Results
 }
 
-public sealed record PublicExamTypeOption(int Id, string Name);
+public sealed record PublicExamTypeOption(int Id, string Name, string IdentifierLabel);
 
 public sealed record PublicExamLookupItem(string ExamName, IReadOnlyDictionary<string, string?> Values);
 
