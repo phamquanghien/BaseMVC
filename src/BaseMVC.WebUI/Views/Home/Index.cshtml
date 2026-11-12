@@ -66,11 +66,11 @@
                 <div class="grid gap-4 sm:grid-cols-2">
                     <label class="form-control">
                         <span class="label-text mb-1 font-medium" data-identifier-label>Mã sinh viên</span>
-                        <input class="input input-bordered w-full" name="Identifier" maxlength="50" autocomplete="username" required />
+                        <input class="input input-bordered w-full" name="Identifier" maxlength="50" required />
                     </label>
                     <label class="form-control">
                         <span class="label-text mb-1 font-medium">Ngày tháng năm sinh</span>
-                        <input class="input input-bordered w-full" name="DateOfBirth" inputmode="numeric" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" autocomplete="bday" required />
+                        <input class="input input-bordered w-full" type="text" name="DateOfBirth" placeholder="dd/mm/yyyy" pattern="[0-9]{2}/[0-9]{2}/[0-9]{4}" autocomplete="bday" required data-date-input />
                     </label>
                 </div>
                 @if (string.IsNullOrWhiteSpace(Model.RecaptchaSiteKey))
@@ -79,7 +79,6 @@
                 }
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <button type="submit" class="btn btn-primary sm:min-w-40" data-lookup-submit disabled="@(string.IsNullOrWhiteSpace(Model.RecaptchaSiteKey))">Tra cứu</button>
-                    <p class="text-xs text-base-content/60">Trang được bảo vệ bởi reCAPTCHA và áp dụng Chính sách quyền riêng tư/Điều khoản của Google.</p>
                 </div>
             </form>
         </div>
@@ -106,4 +105,30 @@
         <script src="https://www.google.com/recaptcha/api.js?render=@Model.RecaptchaSiteKey" async defer></script>
     }
     <script src="~/js/public-exam-lookup.js" asp-append-version="true"></script>
+    <script>
+        // Auto-format date input to dd/mm/yyyy
+        document.addEventListener('DOMContentLoaded', function () {
+            const dateInput = document.querySelector('[data-date-input]');
+            if (dateInput) {
+                dateInput.addEventListener('input', function (e) {
+                    let value = e.target.value.replace(/\D/g, ''); // Remove all non-digit characters
+                    
+                    if (value.length > 8) {
+                        value = value.slice(0, 8);
+                    }
+                    
+                    let formatted = '';
+                    for (let i = 0; i < value.length; i++) {
+                        if (i === 2 || i === 4) {
+                            formatted += '/';
+                        }
+                        formatted += value[i];
+                    }
+                    
+                    e.target.value = formatted;
+                });
+            }
+        });
+    </script>
 }
+
