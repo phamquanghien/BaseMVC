@@ -7,6 +7,7 @@ public enum AuditEventType
     PasswordResetEmailDelivery,
     PasswordResetCompleted,
     PasswordChange,
+    AdministrativePasswordReset,
     Logout,
     UserCreated,
     UserUpdated,

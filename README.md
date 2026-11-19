@@ -192,13 +192,16 @@ and a role assigned to users cannot be deleted.
 
 Users with `Permissions.Users.Read` can open `/Admin/Users`. Search and paging
 use JSON endpoints; authorized operators can create accounts with an initial
-password, update email and role assignments, lock/unlock accounts, and delete
-accounts without reloading the page. All write requests require an
-ASP.NET Core Anti-Forgery token. Editing does not change an existing password.
-Operators cannot lock or delete their own account, and the last unlocked
-SuperAdmin cannot be locked, removed from the SuperAdmin role, or deleted.
-Email addresses of accounts assigned to the SuperAdmin role cannot be changed.
-Assigning the SuperAdmin role additionally requires `Permissions.Access.Manage`.
+password, update email and role assignments, lock/unlock accounts, set a user's
+password directly, and delete accounts without reloading the page. Setting a
+password requires `Permissions.Users.Update`, enforces the Identity password
+policy, does not send email, and invalidates the target account's existing
+sessions. All write requests require an ASP.NET Core Anti-Forgery token. Editing
+does not change an existing password. Operators cannot lock or delete their own
+account, and the last unlocked SuperAdmin cannot be locked, removed from the
+SuperAdmin role, or deleted. Email addresses of accounts assigned to the
+SuperAdmin role cannot be changed. Assigning the SuperAdmin role additionally
+requires `Permissions.Access.Manage`.
 
 ## Role permissions
 
@@ -211,8 +214,9 @@ Grant and revoke operations update role claims in SQLite immediately.
 
 ## Audit log
 
-Authentication outcomes, password reset/change events, and successful
-administrative user, role, and permission mutations are recorded in the
+Authentication outcomes, password reset/change events (including direct
+password changes by an administrator), and successful administrative user,
+role, and permission mutations are recorded in the
 append-only `AuditLogEntries` table. Records contain a UTC timestamp, fixed
 event/outcome names, and optional internal actor/target IDs. They do not store
 email addresses, IP addresses, passwords, reset tokens, URLs, or request

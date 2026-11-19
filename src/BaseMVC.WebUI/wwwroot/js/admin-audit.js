@@ -38,6 +38,7 @@
     PasswordResetEmailDelivery: "Gửi email đặt lại mật khẩu",
     PasswordResetCompleted: "Hoàn tất đặt lại mật khẩu",
     PasswordChange: "Đổi mật khẩu",
+    AdministrativePasswordReset: "Quản trị viên đặt lại mật khẩu",
     Logout: "Đăng xuất",
     UserCreated: "Tạo người dùng",
     UserUpdated: "Cập nhật người dùng",

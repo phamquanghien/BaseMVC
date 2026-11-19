@@ -51,6 +51,17 @@ public sealed class UsersController(ISender sender, IAuthorizationService author
         return ToActionResult(result);
     }
 
+    [Authorize(Policy = "Permissions.Users.Update")]
+    [HttpPost("{id}/password")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdatePassword(
+        string id, [FromBody] UserPasswordUpdateRequest request, CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new UpdateUserPasswordCommand(id, request.NewPassword, CurrentUserId()), cancellationToken);
+        return ToActionResult(result);
+    }
+
     [Authorize(Policy = "Permissions.Users.Delete")]
     [HttpPost("{id}/delete")]
     [ValidateAntiForgeryToken]

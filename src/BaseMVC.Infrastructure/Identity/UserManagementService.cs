@@ -148,6 +148,28 @@ public sealed class UserManagementService(
         return UserMutationResult.NoContent();
     }
 
+    public async Task<UserMutationResult> UpdatePasswordAsync(string id, string newPassword, string? actorUserId, CancellationToken cancellationToken)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user is null) return UserMutationResult.NotFound("Không tìm thấy tài khoản.");
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
+        var outcome = result.Succeeded ? AuditOutcome.Succeeded : AuditOutcome.Failed;
+        await auditLogWriter.WriteAsync(
+            AuditEventType.AdministrativePasswordReset, outcome, actorUserId, user.Id,
+            cancellationToken: cancellationToken);
+        if (!result.Succeeded)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return UserMutationResult.BadRequest(result.Errors.Select(error => error.Description));
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return UserMutationResult.NoContent();
+    }
+
     private async Task<(string[]? Names, UserMutationResult? Error)> ValidateRoleAssignmentsAsync(IReadOnlyCollection<string> roleIds, IEnumerable<string>? currentNames, bool canManageAccess, CancellationToken cancellationToken)
     {
         var uniqueIds = roleIds.Distinct(StringComparer.Ordinal).ToArray();

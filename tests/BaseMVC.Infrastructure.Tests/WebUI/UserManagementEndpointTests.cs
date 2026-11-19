@@ -493,6 +493,88 @@ public sealed partial class UserManagementEndpointTests
     }
 
     [Fact]
+    public async Task Administrative_password_update_requires_permission_antiforgery_and_identity_policy()
+    {
+        using var factory = new UserManagementWebApplicationFactory();
+        const string operatorEmail = "password-operator@example.test";
+        const string targetEmail = "password-target@example.test";
+        const string oldPassword = "TargetUser123!";
+        const string newPassword = "UpdatedTarget456!";
+        await factory.CreateUserAsync(operatorEmail, "PasswordOperator123!");
+        await factory.CreateRoleForUserAsync(operatorEmail, "PasswordOperator");
+        await factory.CreateUserAsync(targetEmail, oldPassword);
+
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+        await SignInAsync(client, operatorEmail, "PasswordOperator123!");
+        var token = await GetPageTokenAsync(client, "/Account/ChangePassword");
+        string targetId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var target = await userManager.FindByEmailAsync(targetEmail);
+            Assert.NotNull(target);
+            targetId = target.Id;
+        }
+
+        using var deniedResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{targetId}/password",
+            token,
+            new { newPassword, confirmPassword = newPassword });
+        Assert.Equal(HttpStatusCode.Forbidden, deniedResponse.StatusCode);
+
+        await factory.SetRolePermissionAsync(
+            "PasswordOperator", "Permissions.Users.Update", grant: true);
+
+        using var missingTokenResponse = await client.PostAsJsonAsync(
+            $"/Admin/Users/{targetId}/password",
+            new { newPassword, confirmPassword = newPassword });
+        Assert.Equal(HttpStatusCode.BadRequest, missingTokenResponse.StatusCode);
+
+        using var mismatchResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{targetId}/password",
+            token,
+            new { newPassword, confirmPassword = "DifferentPassword789!" });
+        Assert.Equal(HttpStatusCode.BadRequest, mismatchResponse.StatusCode);
+
+        using var shortPasswordResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{targetId}/password",
+            token,
+            new { newPassword = "short", confirmPassword = "short" });
+        Assert.Equal(HttpStatusCode.BadRequest, shortPasswordResponse.StatusCode);
+
+        using var updateResponse = await PostWithTokenAsync(
+            client,
+            $"/Admin/Users/{targetId}/password",
+            token,
+            new { newPassword, confirmPassword = newPassword });
+        Assert.True(
+            updateResponse.StatusCode == HttpStatusCode.NoContent,
+            await updateResponse.Content.ReadAsStringAsync());
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var user = await userManager.FindByIdAsync(targetId);
+            Assert.NotNull(user);
+            Assert.False(await userManager.CheckPasswordAsync(user, oldPassword));
+            Assert.True(await userManager.CheckPasswordAsync(user, newPassword));
+        }
+
+        var auditEntries = await GetAuditEntriesAsync(factory);
+        Assert.Contains(auditEntries, entry =>
+            entry.EventType == nameof(AuditEventType.AdministrativePasswordReset)
+            && entry.Outcome == nameof(AuditOutcome.Succeeded)
+            && entry.TargetUserId == targetId);
+        AssertAuditEntriesContainNoSensitiveValues(auditEntries, oldPassword, newPassword);
+    }
+
+    [Fact]
     public async Task Role_and_permission_mutations_are_audited_with_stable_role_id()
     {
         using var factory = new UserManagementWebApplicationFactory();

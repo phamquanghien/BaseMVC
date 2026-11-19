@@ -11,6 +11,7 @@
          data-roles-url="@Url.Action("GetAssignableRoles", "Users", new { area = "" })"
          data-create-url="@Url.Action("Create", "Users", new { area = "" })"
          data-edit-url-template="@Url.Action("Edit", "Users", new { area = "", id = "__userId__" })"
+         data-password-url-template="@Url.Action("UpdatePassword", "Users", new { area = "", id = "__userId__" })"
          data-delete-url-template="@Url.Action("Delete", "Users", new { area = "", id = "__userId__" })"
          data-can-create="@canCreateUser.ToString().ToLowerInvariant()"
          data-can-update="@canUpdateUser.ToString().ToLowerInvariant()"
@@ -130,6 +131,36 @@
             <div class="modal-action">
                 <button type="button" class="btn btn-ghost" data-user-delete-cancel>Hủy</button>
                 <button type="button" class="btn btn-error" data-user-delete-confirm>Xóa tài khoản</button>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>
+    </dialog>
+
+    <dialog class="modal" data-user-password-modal>
+        <div class="modal-box">
+            <form method="dialog">
+                <button class="btn btn-sm btn-circle btn-ghost absolute right-3 top-3" aria-label="Đóng">✕</button>
+            </form>
+            <h2 class="text-xl font-bold">Đặt mật khẩu mới</h2>
+            <p class="mt-2 text-sm text-base-content/70" data-user-password-description></p>
+            <p class="mt-2 text-sm text-warning">Người dùng sẽ cần dùng mật khẩu mới; các phiên đăng nhập hiện tại sẽ bị vô hiệu hóa.</p>
+            <div class="alert alert-error mt-4 hidden" role="alert" data-user-password-error></div>
+            <div class="mt-4 space-y-4">
+                <div>
+                    <label for="user-new-password" class="label"><span class="label-text font-medium">Mật khẩu mới</span></label>
+                    <input id="user-new-password" type="password" class="input input-bordered w-full"
+                           minlength="12" autocomplete="new-password" required />
+                    <p class="mt-1 text-xs text-base-content/60">Tối thiểu 12 ký tự; mật khẩu không hiển thị lại sau khi lưu.</p>
+                </div>
+                <div>
+                    <label for="user-confirm-password" class="label"><span class="label-text font-medium">Xác nhận mật khẩu mới</span></label>
+                    <input id="user-confirm-password" type="password" class="input input-bordered w-full"
+                           minlength="12" autocomplete="new-password" required />
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" class="btn btn-ghost" data-user-password-cancel>Hủy</button>
+                <button type="button" class="btn btn-primary" data-user-password-submit>Đặt mật khẩu</button>
             </div>
         </div>
         <form method="dialog" class="modal-backdrop"><button aria-label="Đóng hộp thoại">đóng</button></form>

@@ -6,5 +6,6 @@ public interface IUserManagementService
     Task<IReadOnlyList<AssignableRole>> GetAssignableRolesAsync(bool canManageAccess, CancellationToken cancellationToken);
     Task<UserMutationResult> CreateAsync(string email, string password, IReadOnlyCollection<string> roleIds, string? actorUserId, bool canManageAccess, CancellationToken cancellationToken);
     Task<UserMutationResult> EditAsync(string id, string email, IReadOnlyCollection<string> roleIds, bool isLocked, string? actorUserId, bool canManageAccess, CancellationToken cancellationToken);
+    Task<UserMutationResult> UpdatePasswordAsync(string id, string newPassword, string? actorUserId, CancellationToken cancellationToken);
     Task<UserMutationResult> DeleteAsync(string id, string? actorUserId, CancellationToken cancellationToken);
 }

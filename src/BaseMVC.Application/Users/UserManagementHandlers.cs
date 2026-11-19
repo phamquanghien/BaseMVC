@@ -26,6 +26,12 @@ public sealed class EditUserHandler(IUserManagementService service) : IRequestHa
         service.EditAsync(request.Id, request.Email, request.RoleIds, request.IsLocked, request.ActorUserId, request.CanManageAccess, cancellationToken);
 }
 
+public sealed class UpdateUserPasswordHandler(IUserManagementService service) : IRequestHandler<UpdateUserPasswordCommand, UserMutationResult>
+{
+    public Task<UserMutationResult> Handle(UpdateUserPasswordCommand request, CancellationToken cancellationToken) =>
+        service.UpdatePasswordAsync(request.Id, request.NewPassword, request.ActorUserId, cancellationToken);
+}
+
 public sealed class DeleteUserHandler(IUserManagementService service) : IRequestHandler<DeleteUserCommand, UserMutationResult>
 {
     public Task<UserMutationResult> Handle(DeleteUserCommand request, CancellationToken cancellationToken) =>

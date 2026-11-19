@@ -29,6 +29,13 @@
   const deleteError = manager.querySelector("[data-user-delete-error]");
   const deleteCancel = manager.querySelector("[data-user-delete-cancel]");
   const deleteConfirm = manager.querySelector("[data-user-delete-confirm]");
+  const passwordModal = manager.querySelector("[data-user-password-modal]");
+  const passwordDescription = manager.querySelector("[data-user-password-description]");
+  const passwordError = manager.querySelector("[data-user-password-error]");
+  const newPasswordInput = manager.querySelector("#user-new-password");
+  const confirmPasswordInput = manager.querySelector("#user-confirm-password");
+  const passwordCancel = manager.querySelector("[data-user-password-cancel]");
+  const passwordSubmit = manager.querySelector("[data-user-password-submit]");
   const adminApi = window.BaseAdmin;
 
   if (
@@ -58,6 +65,13 @@
     !(deleteError instanceof HTMLElement) ||
     !(deleteCancel instanceof HTMLButtonElement) ||
     !(deleteConfirm instanceof HTMLButtonElement) ||
+    !(passwordModal instanceof HTMLDialogElement) ||
+    !(passwordDescription instanceof HTMLElement) ||
+    !(passwordError instanceof HTMLElement) ||
+    !(newPasswordInput instanceof HTMLInputElement) ||
+    !(confirmPasswordInput instanceof HTMLInputElement) ||
+    !(passwordCancel instanceof HTMLButtonElement) ||
+    !(passwordSubmit instanceof HTMLButtonElement) ||
     !adminApi
   ) {
     throw new Error("User manager markup is incomplete.");
@@ -68,6 +82,7 @@
     rolesUrl: manager.dataset.rolesUrl,
     createUrl: manager.dataset.createUrl,
     editUrlTemplate: manager.dataset.editUrlTemplate,
+    passwordUrlTemplate: manager.dataset.passwordUrlTemplate,
     deleteUrlTemplate: manager.dataset.deleteUrlTemplate,
     canCreate: manager.dataset.canCreate === "true",
     canUpdate: manager.dataset.canUpdate === "true",
@@ -79,6 +94,7 @@
       config.rolesUrl,
       config.createUrl,
       config.editUrlTemplate,
+      config.passwordUrlTemplate,
       config.deleteUrlTemplate,
     ].some((value) => !value)
   ) {
@@ -146,7 +162,10 @@
       actions.className = "text-right";
       const actionGroup = document.createElement("div");
       actionGroup.className = "flex justify-end gap-1";
-      if (config.canUpdate) actionGroup.append(makeActionButton("Sửa", "edit", user));
+      if (config.canUpdate) {
+        actionGroup.append(makeActionButton("Sửa", "edit", user));
+        actionGroup.append(makeActionButton("Đổi mật khẩu", "password", user));
+      }
       if (config.canDelete && !user.isCurrentUser) {
         actionGroup.append(makeActionButton("Xóa", "delete", user));
       }
@@ -314,6 +333,46 @@
       deleteConfirm.disabled = false;
     }
   };
+  const openPasswordEditor = (user) => {
+    activeUser = user;
+    hideError(passwordError);
+    newPasswordInput.value = "";
+    confirmPasswordInput.value = "";
+    passwordSubmit.disabled = false;
+    passwordDescription.textContent = `Đặt mật khẩu mới cho ${user.email}.`;
+    passwordModal.showModal();
+    newPasswordInput.focus();
+  };
+  const updatePassword = async () => {
+    if (!activeUser || isSaving) return;
+    hideError(passwordError);
+    if (!newPasswordInput.checkValidity() || !confirmPasswordInput.checkValidity()) {
+      (newPasswordInput.checkValidity() ? confirmPasswordInput : newPasswordInput).reportValidity();
+      return;
+    }
+    if (newPasswordInput.value !== confirmPasswordInput.value) {
+      showError(passwordError, "Mật khẩu xác nhận không khớp.");
+      confirmPasswordInput.focus();
+      return;
+    }
+    isSaving = true;
+    passwordSubmit.disabled = true;
+    try {
+      await request(userUrl(config.passwordUrlTemplate, activeUser.id), {
+        method: "POST",
+        body: JSON.stringify({
+          newPassword: newPasswordInput.value,
+          confirmPassword: confirmPasswordInput.value,
+        }),
+      });
+      passwordModal.close();
+    } catch (error) {
+      showError(passwordError, error.message || "Không thể đặt mật khẩu mới.");
+    } finally {
+      isSaving = false;
+      passwordSubmit.disabled = false;
+    }
+  };
 
   createButton?.addEventListener("click", () => {
     if (config.canCreate) openEditor("create");
@@ -328,6 +387,8 @@
   });
   deleteCancel.addEventListener("click", () => deleteModal.close());
   deleteConfirm.addEventListener("click", deleteUser);
+  passwordCancel.addEventListener("click", () => passwordModal.close());
+  passwordSubmit.addEventListener("click", updatePassword);
   rows.addEventListener("click", (event) => {
     const target = event.target;
     if (!(target instanceof Element)) return;
@@ -349,6 +410,8 @@
     if (!user.id || !user.email) return;
     if (button.dataset.userAction === "edit" && config.canUpdate) {
       openEditor("edit", user);
+    } else if (button.dataset.userAction === "password" && config.canUpdate) {
+      openPasswordEditor(user);
     } else if (button.dataset.userAction === "delete" && config.canDelete && !user.isCurrentUser) {
       activeUser = user;
       hideError(deleteError);
