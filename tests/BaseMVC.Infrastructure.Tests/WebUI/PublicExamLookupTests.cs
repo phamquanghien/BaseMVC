@@ -45,9 +45,13 @@ public sealed partial class UserManagementEndpointTests
                 LastName = "Nguyễn Văn",
                 FirstName = "An",
                 DateOfBirth = new DateOnly(2005, 12, 1),
+                Gender = true,
+                Ethnicity = "Kinh",
+                BirthProvince = "Hà Nội",
                 MultipleChoiceScore = "8",
                 PracticalScore = "9",
                 Result = "Đạt",
+                Note = "Đủ điều kiện cấp chứng chỉ",
                 CreatedAtUtc = DateTimeOffset.UtcNow
             });
             await db.SaveChangesAsync();
@@ -69,8 +73,28 @@ public sealed partial class UserManagementEndpointTests
         var results = await service.LookupAsync(
             examTypeId, PublicExamLookupKind.Results, "001205000001", new DateOnly(2005, 12, 1), CancellationToken.None);
         var resultItem = Assert.Single(results!.Items);
+        Assert.Equal(
+            new[]
+            {
+                "examName", "identityNumber", "lastName", "firstName", "dateOfBirth", "gender",
+                "ethnicity", "birthPlace", "multipleChoiceScore", "practicalScore", "result", "note"
+            },
+            results.Columns.Select(column => column.Key));
+        Assert.Equal(
+            new[]
+            {
+                "Kỳ thi", "Căn cước công dân", "Họ đệm", "Tên", "Ngày sinh", "Giới tính",
+                "Dân tộc", "Nơi sinh", "Điểm trắc nghiệm", "Điểm thực hành", "Kết quả", "Ghi chú"
+            },
+            results.Columns.Select(column => column.Label));
         Assert.Equal("Đạt", resultItem.Values["result"]);
         Assert.Equal("8", resultItem.Values["multipleChoiceScore"]);
+        Assert.Equal("01/12/2005", resultItem.Values["dateOfBirth"]);
+        Assert.Equal("Nam", resultItem.Values["gender"]);
+        Assert.Equal("Kinh", resultItem.Values["ethnicity"]);
+        Assert.Equal("Hà Nội", resultItem.Values["birthPlace"]);
+        Assert.Equal("Đủ điều kiện cấp chứng chỉ", resultItem.Values["note"]);
+        Assert.DoesNotContain("candidateNumber", resultItem.Values);
 
         var wrongDate = await service.LookupAsync(
             examTypeId, PublicExamLookupKind.Results, "001205000001", new DateOnly(2005, 12, 2), CancellationToken.None);

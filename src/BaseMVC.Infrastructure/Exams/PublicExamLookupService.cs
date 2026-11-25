@@ -108,7 +108,8 @@ public sealed class PublicExamLookupService(ApplicationDbContext dbContext) : IP
         ExamDataColumn[] resultColumns =
         [
             new("examName", "Kỳ thi"), new("identityNumber", "Căn cước công dân"),
-            new("candidateNumber", "Số báo danh"), new("lastName", "Họ đệm"), new("firstName", "Tên"),
+            new("lastName", "Họ đệm"), new("firstName", "Tên"), new("dateOfBirth", "Ngày sinh"),
+            new("gender", "Giới tính"), new("ethnicity", "Dân tộc"), new("birthPlace", "Nơi sinh"),
             new("multipleChoiceScore", "Điểm trắc nghiệm"), new("practicalScore", "Điểm thực hành"),
             new("result", "Kết quả"), new("note", "Ghi chú")
         ];
@@ -117,9 +118,12 @@ public sealed class PublicExamLookupService(ApplicationDbContext dbContext) : IP
             new Dictionary<string, string?>
             {
                 ["identityNumber"] = row.IdentityNumber,
-                ["candidateNumber"] = row.CandidateNumber,
                 ["lastName"] = row.LastName,
                 ["firstName"] = row.FirstName,
+                ["dateOfBirth"] = row.DateOfBirth.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture),
+                ["gender"] = row.Gender ? "Nam" : "Nữ",
+                ["ethnicity"] = row.Ethnicity,
+                ["birthPlace"] = row.BirthProvince,
                 ["multipleChoiceScore"] = row.MultipleChoiceScore,
                 ["practicalScore"] = row.PracticalScore,
                 ["result"] = row.Result,
